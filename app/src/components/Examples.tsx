@@ -91,6 +91,7 @@ const Examples = ({
           </p>
           <p>Search examples:</p>
           <input
+            aria-label="Search examples"
             type="text"
             onChange={(event) => setSearchStr(event.target.value)}
           />
@@ -104,7 +105,10 @@ const Examples = ({
                   onClick={() => exampleClick(exampleStr)}
                 >
                   <ExampleText>{exampleStr}</ExampleText>
-                  <Img src={basePath(`/examples/images/${exampleStr}.svg`)} />
+                  <Img
+                    src={basePath(`/examples/images/${exampleStr}.svg`)}
+                    alt={`${exampleStr} example preview`}
+                  />
                 </Example>
               );
             } else {

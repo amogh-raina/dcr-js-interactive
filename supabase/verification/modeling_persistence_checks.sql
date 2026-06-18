@@ -22,6 +22,23 @@ expected_policies(table_name, policy_name) as (
     ('modeling_drafts', 'Allowed users can update own modeling draft'),
     ('modeling_drafts', 'Allowed users can delete own modeling draft')
 ),
+expected_table_privileges(table_name, privilege_name) as (
+  values
+    ('graphs', 'SELECT'),
+    ('graphs', 'INSERT'),
+    ('graphs', 'UPDATE'),
+    ('graphs', 'DELETE'),
+    ('graph_versions', 'SELECT'),
+    ('graph_versions', 'INSERT'),
+    ('journal_entries', 'SELECT'),
+    ('journal_entries', 'INSERT'),
+    ('journal_entries', 'UPDATE'),
+    ('journal_entries', 'DELETE'),
+    ('modeling_drafts', 'SELECT'),
+    ('modeling_drafts', 'INSERT'),
+    ('modeling_drafts', 'UPDATE'),
+    ('modeling_drafts', 'DELETE')
+),
 email_checks(email, expected) as (
   values
     ('alice@gmail.com', true),
@@ -69,6 +86,24 @@ checks as (
   union all
 
   select
+    'authenticated grant: ' || expected_table_privileges.table_name || ' / ' || expected_table_privileges.privilege_name as check_name,
+    exists (
+      select 1
+      from pg_class
+      join pg_namespace on pg_namespace.oid = pg_class.relnamespace
+      where pg_namespace.nspname = 'public'
+        and pg_class.relname = expected_table_privileges.table_name
+        and has_table_privilege(
+          'authenticated',
+          pg_class.oid,
+          expected_table_privileges.privilege_name
+        )
+    ) as passed
+  from expected_table_privileges
+
+  union all
+
+  select
     'function exists: is_allowed_university_email_address' as check_name,
     exists (
       select 1
@@ -76,6 +111,32 @@ checks as (
       join pg_namespace on pg_namespace.oid = pg_proc.pronamespace
       where pg_namespace.nspname = 'public'
         and pg_proc.proname = 'is_allowed_university_email_address'
+    ) as passed
+
+  union all
+
+  select
+    'authenticated function grant: is_allowed_university_email' as check_name,
+    exists (
+      select 1
+      from pg_proc
+      join pg_namespace on pg_namespace.oid = pg_proc.pronamespace
+      where pg_namespace.nspname = 'public'
+        and pg_proc.proname = 'is_allowed_university_email'
+        and has_function_privilege('authenticated', pg_proc.oid, 'EXECUTE')
+    ) as passed
+
+  union all
+
+  select
+    'authenticated function grant: is_allowed_university_email_address' as check_name,
+    exists (
+      select 1
+      from pg_proc
+      join pg_namespace on pg_namespace.oid = pg_proc.pronamespace
+      where pg_namespace.nspname = 'public'
+        and pg_proc.proname = 'is_allowed_university_email_address'
+        and has_function_privilege('authenticated', pg_proc.oid, 'EXECUTE')
     ) as passed
 
   union all

@@ -7,6 +7,10 @@ import { ToastContainer } from "react-toastify";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <App />
-    <ToastContainer position="top-left" />
+    <ToastContainer
+      aria-label="Application notifications"
+      position="top-left"
+      role="alert"
+    />
   </StrictMode>
 );

@@ -48,9 +48,11 @@ environment variables, or chat logs. It belongs only in the Supabase Dashboard.
 
 ## Migration
 
-Apply the SQL in `migrations/20260618160000_initial_persistence.sql` to a Supabase project.
+Apply the SQL migrations to a Supabase project in this order:
 
-Then apply `migrations/20260618183000_allow_google_authenticated_users.sql`.
+1. `migrations/20260618160000_initial_persistence.sql`
+2. `migrations/20260618183000_allow_google_authenticated_users.sql`
+3. `migrations/20260618190000_grant_authenticated_persistence_access.sql`
 
 The migration creates:
 
@@ -63,19 +65,22 @@ It also enables Row Level Security and restricts graph data access to the signed
 
 The Google-auth migration removes the previous university-email auth trigger and changes the old email-domain helper functions to allow any authenticated user. Existing policy names are kept for compatibility with the initial migration.
 
+The grant migration gives the Supabase `authenticated` role Data API access to the persistence tables. Row Level Security still restricts rows to the owning signed-in user. If the app shows errors such as `Unable to load saved graphs` or `Unable to save graph`, confirm this grant migration has been applied.
+
 The frontend integration persists saved graphs, graph versions, Modeling journal entries for saved graphs, and the user's latest Modeling draft.
 
 The Modeling draft stores the current graph XML, graph name, optional saved graph link, and journal entries. This protects newly created, uploaded, and example-based graphs before the user explicitly saves them as named graphs.
 
 ## Verification
 
-After applying both migrations, run `verification/modeling_persistence_checks.sql` in the Supabase SQL editor.
+After applying all migrations, run `verification/modeling_persistence_checks.sql` in the Supabase SQL editor.
 
 The verification query checks:
 
 - required Modeling persistence tables exist
 - Row Level Security is enabled
 - expected policies exist
+- authenticated table grants exist
 - compatibility auth helper functions exist
 - the old university-domain auth trigger has been removed
 - representative email addresses are accepted by the relaxed helper

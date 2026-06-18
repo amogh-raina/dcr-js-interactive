@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { toast } from "react-toastify";
+import styled from "styled-components";
 import ModelerState from "./components/ModelerState";
 import HomeState from "./components/HomeState";
 import SimulatorState from "./components/SimulatorState";
@@ -21,6 +22,12 @@ import {
   supabase,
 } from "./supabase/client";
 import { loadRemoteGraphs, saveRemoteGraph } from "./supabase/graphs";
+import { persistenceErrorMessage } from "./supabase/errors";
+
+const MainLandmark = styled.main`
+  min-height: 100vh;
+  width: 100%;
+`;
 
 export const StateEnum = {
   Modeler: "Modeler",
@@ -66,6 +73,7 @@ export interface StateProps {
   changeMarkerNotation: (value: unknown) => void;
   coloredRelations: ColoredRelations;
   changeColoredRelations: (value: unknown) => void;
+  setModelingPersistenceWarning?: (warning: string | null) => void;
 }
 
 const App = () => {
@@ -73,6 +81,8 @@ const App = () => {
   const [authSession, setAuthSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(isSupabaseConfigured);
   const [graphsLoading, setGraphsLoading] = useState(false);
+  const [modelingPersistenceWarning, setModelingPersistenceWarning] =
+    useState<string | null>(null);
 
   const [markerNotation, setMarkerNotation] =
     useState<MarkerNotation>("TAL2023");
@@ -143,6 +153,12 @@ const App = () => {
   }, []);
 
   useEffect(() => {
+    if (state !== StateEnum.Modeler) {
+      setModelingPersistenceWarning(null);
+    }
+  }, [state]);
+
+  useEffect(() => {
     if (!isSupabaseConfigured || !authSession) {
       return;
     }
@@ -163,7 +179,10 @@ const App = () => {
       })
       .catch((error) => {
         console.error(error);
-        toast.error("Unable to load saved graphs.");
+        toast.error(persistenceErrorMessage("Unable to load saved graphs", error), {
+          autoClose: false,
+          closeOnClick: true,
+        });
       })
       .finally(() => {
         if (active) {
@@ -202,7 +221,10 @@ const App = () => {
         return graphEntry;
       } catch (error) {
         console.error(error);
-        toast.error("Unable to save graph to the database.");
+        toast.error(persistenceErrorMessage("Unable to save graph", error), {
+          autoClose: false,
+          closeOnClick: true,
+        });
         return null;
       }
     },
@@ -257,6 +279,18 @@ const App = () => {
     }
   }, []);
 
+  const signOut = useCallback(() => {
+    const message =
+      modelingPersistenceWarning ??
+      "Sign out? Make sure your latest graph changes are saved before leaving.";
+
+    if (!window.confirm(message)) {
+      return;
+    }
+
+    void supabase?.auth.signOut();
+  }, [modelingPersistenceWarning]);
+
   const changeColoredRelations = useCallback((value: unknown) => {
     if (isColoredRelations(value)) {
       setColoredRelations(value);
@@ -264,7 +298,7 @@ const App = () => {
   }, []);
 
   if (isSupabaseConfigured && authLoading) {
-    return <div>Checking sign in...</div>;
+    return <MainLandmark aria-busy="true">Checking sign in...</MainLandmark>;
   }
 
   if (isSupabaseConfigured && !authSession) {
@@ -272,7 +306,7 @@ const App = () => {
   }
 
   if (isSupabaseConfigured && graphsLoading) {
-    return <div>Loading saved graphs...</div>;
+    return <MainLandmark aria-busy="true">Loading saved graphs...</MainLandmark>;
   }
 
   const stateContent = (() => {
@@ -297,6 +331,7 @@ const App = () => {
           changeMarkerNotation={changeMarkerNotation}
           coloredRelations={coloredRelations}
           changeColoredRelations={changeColoredRelations}
+          setModelingPersistenceWarning={setModelingPersistenceWarning}
         />
       );
     case StateEnum.Home:
@@ -417,12 +452,10 @@ const App = () => {
       {isSupabaseConfigured && authSession && (
         <AuthStatus
           email={authSession.user.email ?? "Signed in"}
-          onSignOut={() => {
-            void supabase?.auth.signOut();
-          }}
+          onSignOut={signOut}
         />
       )}
-      {stateContent}
+      <MainLandmark>{stateContent}</MainLandmark>
     </>
   );
 };

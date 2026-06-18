@@ -68,6 +68,7 @@ import {
   loadRemoteModelingDraft,
   saveRemoteModelingDraft,
 } from "../supabase/modelingDrafts";
+import { persistenceErrorMessage } from "../supabase/errors";
 
 
 
@@ -132,11 +133,17 @@ const initialRelationVisibility = RELATION_TYPES.reduce(
   {} as RelationVisibility,
 );
 
+const persistentErrorToast = {
+  autoClose: false,
+  closeOnClick: true,
+} as const;
+
 const ModelerState = ({
   setState,
   savedGraphs,
   currentGraph,
   setCurrentGraph,
+  setModelingPersistenceWarning,
   saveGraph: commitSaveGraph,
   coloredRelations,
   changeColoredRelations,
@@ -166,6 +173,7 @@ const ModelerState = ({
   const [draftStatus, setDraftStatus] = useState<
     "idle" | "saving" | "saved" | "error"
   >("idle");
+  const [hasUnsavedGraphChanges, setHasUnsavedGraphChanges] = useState(false);
   const journalIdRef = useRef(0);
   const draftRestoreDoneRef = useRef(false);
   const journalSyncGraphIdRef = useRef<string | null>(null);
@@ -237,7 +245,7 @@ const ModelerState = ({
       if (isSupabaseConfigured && graphId) {
         updateRemoteJournalNote(graphId, entryId, note).catch((error) => {
           console.error(error);
-          toast.error("Unable to save journal note.");
+          toast.error(persistenceErrorMessage("Unable to save journal note", error));
         });
       }
     },
@@ -255,7 +263,7 @@ const ModelerState = ({
       if (isSupabaseConfigured && graphId) {
         deleteRemoteJournalEntry(graphId, entryId).catch((error) => {
           console.error(error);
-          toast.error("Unable to delete journal note.");
+          toast.error(persistenceErrorMessage("Unable to delete journal note", error));
         });
       }
     },
@@ -273,7 +281,10 @@ const ModelerState = ({
         journalSyncGraphIdRef.current = graphId;
       } catch (error) {
         console.error(error);
-        toast.error("Unable to sync journal entries.");
+        toast.error(
+          persistenceErrorMessage("Unable to sync journal entries", error),
+          persistentErrorToast,
+        );
       }
     },
     [journalEntries],
@@ -286,6 +297,11 @@ const ModelerState = ({
   const markDraftDirty = useCallback(() => {
     setDraftSaveKey((current) => current + 1);
   }, []);
+
+  const markGraphDirty = useCallback(() => {
+    setHasUnsavedGraphChanges(true);
+    markDraftDirty();
+  }, [markDraftDirty]);
 
   const toggleRelationType = useCallback((relationType: RelationTypeFilter) => {
     setRelationVisibility((current) => ({
@@ -384,7 +400,10 @@ const ModelerState = ({
         }
       } catch (error) {
         console.error(error);
-        toast.error("Unable to load journal entries.");
+        toast.error(
+          persistenceErrorMessage("Unable to load journal entries", error),
+          persistentErrorToast,
+        );
       }
     }
 
@@ -431,7 +450,10 @@ const ModelerState = ({
         .catch((error: unknown) => {
           console.error(error);
           setDraftStatus("error");
-          toast.error("Unable to autosave modeling draft.");
+          toast.error(
+            persistenceErrorMessage("Unable to autosave modeling draft", error),
+            persistentErrorToast,
+          );
         });
     }, 900);
 
@@ -460,6 +482,7 @@ const ModelerState = ({
       const data = await modeler.saveXML({ format: false });
       const savedGraph = await commitSaveGraph(graphName, data.xml);
       if (savedGraph) {
+        setHasUnsavedGraphChanges(false);
         if (savedGraph.id) {
           await syncJournalEntries(savedGraph.id);
           markDraftDirty();
@@ -513,6 +536,7 @@ const ModelerState = ({
           const openedGraphName = importName ? importName : initGraphName;
           setGraphName(openedGraphName);
           setCurrentGraph(savedGraphName ?? null);
+          setHasUnsavedGraphChanges(!savedGraphName);
           setSelectedElementId(null);
           modeler?.setFocusFilter(null);
           resetJournal(openedGraphName);
@@ -640,7 +664,7 @@ const ModelerState = ({
               <FileUpload accept=".bpmn,.xml" fileCallback={(name, contents) => {
                 setCurrentGraph(null);
                 resetJournal(name.replace(/\.(bpmn|xml)$/, '') || initGraphName);
-                markDraftDirty();
+                markGraphDirty();
                 convertBpmnToDcr(contents, name);
                 setMenuOpen(false);
               }}>
@@ -837,13 +861,18 @@ const ModelerState = ({
 
           if (draft.graphId && savedGraphs.has(draft.graphName)) {
             setCurrentGraph(draft.graphName);
+            setHasUnsavedGraphChanges(false);
           } else {
             setCurrentGraph(null);
+            setHasUnsavedGraphChanges(true);
           }
         }
       } catch (error) {
         console.error(error);
-        toast.error("Unable to restore modeling draft.");
+        toast.error(
+          persistenceErrorMessage("Unable to restore modeling draft", error),
+          persistentErrorToast,
+        );
       }
     }
 
@@ -855,6 +884,9 @@ const ModelerState = ({
           setJournalEntries(initialJournalEntries);
         } else {
           resetJournal(initialGraphName);
+        }
+        if (currentGraph) {
+          setHasUnsavedGraphChanges(false);
         }
         draftRestoreDoneRef.current = true;
         setDraftStatus(isSupabaseConfigured ? "saved" : "idle");
@@ -876,13 +908,42 @@ const ModelerState = ({
     onInitModeler(modeler);
   }, [modeler]);
 
+  useEffect(() => {
+    if (!setModelingPersistenceWarning) {
+      return;
+    }
+
+    let warning: string | null = null;
+
+    if (draftStatus === "saving") {
+      warning =
+        "Your Modeling draft is still saving. Wait for Draft saved or use Save Graph before signing out. Sign out anyway?";
+    } else if (draftStatus === "error") {
+      warning =
+        "Your latest Modeling draft could not be saved. Use Save Graph or resolve the database error before signing out. Sign out anyway?";
+    } else if (hasUnsavedGraphChanges) {
+      warning =
+        "You have Modeling changes that are not saved as a named graph. Use Save Graph before signing out if you want this graph in Saved Graphs. Sign out anyway?";
+    }
+
+    setModelingPersistenceWarning(warning);
+
+    return () => {
+      setModelingPersistenceWarning(null);
+    };
+  }, [draftStatus, hasUnsavedGraphChanges, setModelingPersistenceWarning]);
+
   const showSidePanel = sidePanelTab === "journal" || selectedElementId !== null;
 
   return (
     <>
       <GraphNameInput
+        aria-label="Graph name"
         value={graphName}
-        onChange={(e) => setGraphName(e.target.value)}
+        onChange={(e) => {
+          setGraphName(e.target.value);
+          markGraphDirty();
+        }}
       />
       {(loading || bpmnLoading) && <Loading />}
       <ReactiveModeler
@@ -897,15 +958,15 @@ const ModelerState = ({
           setSelectedElementId(null);
           modeler?.setFocusFilter(null);
           refreshInspector();
-          markDraftDirty();
+          markGraphDirty();
         }}
         onElementChanged={() => {
           refreshInspector();
-          markDraftDirty();
+          markGraphDirty();
         }}
         onConnectionChanged={() => {
           refreshInspector();
-          markDraftDirty();
+          markGraphDirty();
         }}
       />
       <ModelingSidePanel

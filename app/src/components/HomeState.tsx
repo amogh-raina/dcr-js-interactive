@@ -14,14 +14,18 @@ const Header = styled.h1`
   text-align: center;
 `;
 
-const ImgContainer = styled.div`
+const ImgContainer = styled.button`
   display: flex;
   flex-direction: column;
+  padding: 0;
+  border: none;
   border-radius: 50%;
   width: 30rem;
   height: 30rem;
+  background: transparent;
   color: black;
   cursor: pointer;
+  font: inherit;
   &:hover {
     color: white;
     background-color: black;
@@ -36,7 +40,7 @@ const Img = styled.img`
   margin: auto;
 `;
 
-const ImgLabel = styled.label`
+const ImgLabel = styled.div`
   text-align: center;
   font-size: 40px;
   margin-top: 1rem;
@@ -48,40 +52,63 @@ function HomeState({ setState }: StateProps) {
     <Container>
       <Header>DCR-JS</Header>
       <FlexBox direction="row" $justify="space-around">
-        <ImgContainer onClick={() => setState(StateEnum.Modeler)}>
+        <ImgContainer
+          aria-label="Open Modeling"
+          onClick={() => setState(StateEnum.Modeler)}
+          type="button"
+        >
           <ImgLabel>
             <br />
             Modeling
           </ImgLabel>
-          <Img src={basePath("/icons/modeling.svg")} />
+          <Img src={basePath("/icons/modeling.svg")} alt="Modeling workflow icon" />
         </ImgContainer>
-        <ImgContainer onClick={() => setState(StateEnum.Simulator)}>
+        <ImgContainer
+          aria-label="Open Simulation"
+          onClick={() => setState(StateEnum.Simulator)}
+          type="button"
+        >
           <ImgLabel>
             <br />
             Simulation
           </ImgLabel>
-          <Img src={basePath("/icons/simulation.svg")} />
+          <Img src={basePath("/icons/simulation.svg")} alt="Simulation workflow icon" />
         </ImgContainer>
-        <ImgContainer onClick={() => setState(StateEnum.Conformance)}>
+        <ImgContainer
+          aria-label="Open Conformance"
+          onClick={() => setState(StateEnum.Conformance)}
+          type="button"
+        >
           <ImgLabel>
             <br />
             Conformance
           </ImgLabel>
-          <Img src={basePath("/icons/conformance.svg")} />
+          <Img src={basePath("/icons/conformance.svg")} alt="Conformance workflow icon" />
         </ImgContainer>
-        <ImgContainer onClick={() => setState(StateEnum.Discovery)}>
+        <ImgContainer
+          aria-label="Open Discovery"
+          onClick={() => setState(StateEnum.Discovery)}
+          type="button"
+        >
           <ImgLabel>
             <br />
             Discovery
           </ImgLabel>
-          <Img src={basePath("/icons/discovery.svg")} />
+          <Img src={basePath("/icons/discovery.svg")} alt="Discovery workflow icon" />
         </ImgContainer>
-        <ImgContainer onClick={() => setState(StateEnum.EventLogGeneration)}>
+        <ImgContainer
+          aria-label="Open Log Generation"
+          onClick={() => setState(StateEnum.EventLogGeneration)}
+          type="button"
+        >
           <ImgLabel>
             <br />
             Log Generation
           </ImgLabel>
-          <Img src={basePath("/icons/logGeneration.svg")} />
+          <Img
+            src={basePath("/icons/logGeneration.svg")}
+            alt="Log generation workflow icon"
+          />
         </ImgContainer>
       </FlexBox>
     </Container>

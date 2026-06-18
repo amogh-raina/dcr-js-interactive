@@ -881,6 +881,7 @@ const DiscoveryState = ({
   return (
     <>
       <GraphNameInput
+        aria-label="Discovered graph name"
         value={graphName}
         onChange={(e) => setGraphName(e.target.value)}
       />

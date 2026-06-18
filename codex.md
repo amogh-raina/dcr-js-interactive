@@ -130,6 +130,27 @@ Google auth update:
 - `supabase/README.md` now documents Google Cloud OAuth client setup, Supabase Google provider setup, and the required migration order.
 - The Supabase CLI was not installed in this environment, so the new migration file was added manually under the existing timestamped migration convention.
 
+Accessibility update:
+
+- `app/src/App.tsx` now wraps authenticated application content and loading states in a `<main>` landmark.
+- `app/src/components/HomeState.tsx` now renders the five homepage workflow tiles as semantic buttons instead of clickable `div` elements.
+- Homepage workflow SVG images now include descriptive `alt` text.
+- `app/src/components/Examples.tsx` now labels the example search input and example preview images.
+- `app/src/components/ModelerState.tsx` and `app/src/components/DiscoveryState.tsx` now provide explicit `aria-label` values for the fixed graph-name inputs.
+- `app/src/main.tsx` now labels the React Toastify notification region and sets its role to `alert`.
+- Modeling draft autosave/restore error toasts in `ModelerState.tsx` now use `autoClose: false` so potential data-loss warnings remain visible until dismissed.
+
+Persistence reliability and sign-out safety update:
+
+- `app/src/supabase/errors.ts` was added to convert common Supabase/PostgREST failures into actionable messages. Missing tables, RLS denial, and missing table grants now tell the user to apply the relevant Supabase migrations instead of only showing a generic save/load error.
+- `app/src/App.tsx` now uses persistent error toasts for saved-graph load/save failures and shows the Supabase persistence error details.
+- `app/src/components/ModelerState.tsx` now uses the same persistence error formatter for journal and draft load/save failures.
+- `supabase/migrations/20260618190000_grant_authenticated_persistence_access.sql` was added to grant the Supabase `authenticated` role Data API access to `graphs`, `graph_versions`, `journal_entries`, and `modeling_drafts`; Row Level Security still controls which rows each signed-in user can access.
+- `supabase/verification/modeling_persistence_checks.sql` now verifies authenticated table grants.
+- `supabase/README.md` now documents the three-migration order and notes that missing grants can cause `Unable to load saved graphs` and `Unable to save graph` errors.
+- `app/src/components/ModelerState.tsx` now reports Modeling persistence risk to the app shell when a graph has changes not explicitly saved through `Save Graph`, when the draft is still saving, or when draft persistence failed.
+- `app/src/App.tsx` now asks for confirmation before signing out. If Modeling reports unsaved or failed persistence state, the confirmation message tells the user to save or resolve the database error before leaving.
+
 Deployment configuration update:
 
 - `app/vite.config.ts` now reads `VITE_BASE_PATH`, defaulting to `/dcr-js/`.
@@ -455,12 +476,13 @@ Inspector/focus defaults:
 
 | File | Change |
 | --- | --- |
-| `app/src/App.tsx` | Added Supabase auth session handling, sign-in gating, remote graph loading, async graph saving, graph version creation through the Supabase graph service, and signed-in status rendering. |
+| `app/src/App.tsx` | Added Supabase auth session handling, sign-in gating, remote graph loading, async graph saving, graph version creation through the Supabase graph service, signed-in status rendering, an authenticated-content `<main>` landmark, persistent graph persistence error toasts, and sign-out confirmation that respects Modeling persistence warnings. |
 | `app/src/supabase/client.ts` | New Supabase client/config module. The original university-domain helpers were removed when the app moved to Google OAuth. |
+| `app/src/supabase/errors.ts` | New Supabase persistence error formatter for missing tables, RLS denials, and missing Data API grants. |
 | `app/src/supabase/graphs.ts` | New graph persistence service for loading saved graphs and saving graph XML to Supabase/Postgres. |
 | `app/src/supabase/journal.ts` | New journal persistence service for loading, upserting, updating, and deleting Modeling journal entries in Supabase/Postgres. |
 | `app/src/supabase/modelingDrafts.ts` | New Modeling draft persistence service for loading and autosaving the signed-in user's latest graph XML, graph name, saved graph link, and journal entries. |
-| `app/src/components/AuthGate.tsx` | New sign-in/create-account UI for Supabase Auth. |
+| `app/src/components/AuthGate.tsx` | New Google OAuth sign-in UI for Supabase Auth. |
 | `app/src/components/AuthStatus.tsx` | New signed-in status/sign-out control. |
 | `app/src/vite-env.d.ts` | New Vite environment typings for Supabase variables. |
 | `app/.env.example` | New example environment file for Supabase URL and anon key. |
@@ -470,15 +492,18 @@ Inspector/focus defaults:
 | `vercel.json` | New Vercel deployment config for the monorepo root, building `app` and publishing `app/dist`. |
 | `supabase/migrations/20260618160000_initial_persistence.sql` | New database migration for graph persistence, graph versions, journal entries, modeling drafts, Row Level Security, and the original university-email enforcement. |
 | `supabase/migrations/20260618183000_allow_google_authenticated_users.sql` | New migration that removes the university-email auth trigger and changes the compatibility auth helper functions to allow any authenticated user. |
-| `supabase/README.md` | New setup note for configuring frontend env vars, applying the Supabase migration, running verification SQL, and manually testing Modeling persistence. |
+| `supabase/migrations/20260618190000_grant_authenticated_persistence_access.sql` | New migration granting the Supabase `authenticated` role Data API access to Modeling persistence tables while keeping RLS row ownership protections. |
+| `supabase/README.md` | New setup note for configuring frontend env vars, applying Supabase migrations, running verification SQL, and manually testing Modeling persistence. |
 | `supabase/fallbacks/without_auth_trigger.sql` | New fallback SQL for Supabase projects where the optional auth-users email-domain trigger cannot be installed. |
-| `supabase/verification/modeling_persistence_checks.sql` | New read-only verification query for confirming the Supabase Modeling persistence migration was applied correctly. |
+| `supabase/verification/modeling_persistence_checks.sql` | New read-only verification query for confirming the Supabase Modeling persistence migrations and authenticated grants were applied correctly. |
 | `app/package.json` | Added `@supabase/supabase-js`. |
 | `yarn.lock` | Updated dependency lockfile for the Supabase client package and transitive packages. |
-| `app/src/components/DiscoveryState.tsx` | Updated graph save flow to await async graph persistence. |
+| `app/src/components/DiscoveryState.tsx` | Updated graph save flow to await async graph persistence and added an accessible label for the discovered graph-name input. |
 | `app/src/components/ConformanceCheckingState.tsx` | Updated uploaded graph save calls to await async graph persistence. |
-| `app/src/components/Examples.tsx` | Updated example opening callbacks to pass the example name into the modeler open flow. |
-| `app/src/components/ModelerState.tsx` | Added side panel state, selection tracking, focus filter wiring, journal state, journal command subscriptions, journal reset flow, notebook toolbar icon, async graph save handling, example-name handling, explicit current-graph identity handling for saved vs unsaved opens including BPMN conversion, Supabase journal sync for saved graphs, Supabase Modeling draft autosave/restore, and a draft autosave status indicator. |
+| `app/src/components/Examples.tsx` | Updated example opening callbacks to pass the example name into the modeler open flow, labeled the example search input, and added preview image alt text. |
+| `app/src/components/HomeState.tsx` | Updated home icon asset URLs to respect Vite's configured base path, changed homepage workflow tiles to semantic buttons, and added descriptive image alt text. |
+| `app/src/main.tsx` | Labeled the Toastify notification region and set its role to `alert`. |
+| `app/src/components/ModelerState.tsx` | Added side panel state, selection tracking, focus filter wiring, journal state, journal command subscriptions, journal reset flow, notebook toolbar icon, async graph save handling, example-name handling, explicit current-graph identity handling for saved vs unsaved opens including BPMN conversion, Supabase journal sync for saved graphs, Supabase Modeling draft autosave/restore, a draft autosave status indicator, an accessible graph-name label, persistent draft error toasts, Supabase persistence error details, and sign-out persistence warnings. |
 | `app/src/components/ModelingSidePanel.tsx` | New reusable right-side panel with `Details` and `Journal` tabs. |
 | `app/src/components/SelectionInspector.tsx` | New inspector content for selected DCR elements and relations, including editable description/role and relation visibility toggles. |
 | `app/src/components/SessionJournal.tsx` | New session journal UI with change entries, timestamps, editable notes, and free-form notes. |
