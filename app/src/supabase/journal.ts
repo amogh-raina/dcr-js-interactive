@@ -1,4 +1,5 @@
 import type { JournalEntry } from "../components/SessionJournal";
+import { deduplicateJournalEntries } from "../components/journalEntries";
 import { supabase } from "./client";
 
 type JournalRow = {
@@ -92,14 +93,16 @@ export async function upsertRemoteJournalEntries(
   graphId: string,
   entries: JournalEntry[],
 ) {
-  if (entries.length === 0) {
+  const uniqueEntries = deduplicateJournalEntries(entries);
+
+  if (uniqueEntries.length === 0) {
     return;
   }
 
   const client = requireSupabase();
   const userId = await getCurrentUserId();
   const { error } = await client.from("journal_entries").upsert(
-    entries.map((entry) => ({
+    uniqueEntries.map((entry) => ({
       ...entryToRow(graphId, entry),
       user_id: userId,
     })),

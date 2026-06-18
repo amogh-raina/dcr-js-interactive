@@ -173,6 +173,14 @@ Modeling viewport framing update:
 - This fixes imported/restored graphs opening clipped under the top Modeling controls or stranded at the top of a mostly blank canvas.
 - The fix is visual only. It does not move graph elements, rewrite XML coordinates, or change saved graph semantics.
 
+Journal sync duplicate-id fix:
+
+- `app/src/components/journalEntries.ts` was added with shared helpers for deduplicating journal entries by client id and finding the highest `journal-N` sequence value.
+- `app/src/components/ModelerState.tsx` now advances the in-memory journal id counter after loading journal entries from a remote graph or restored Modeling draft.
+- `app/src/components/ModelerState.tsx` now resets the journal id counter when starting a new journal for a newly opened graph.
+- `app/src/supabase/journal.ts` now deduplicates journal entries before calling Supabase `.upsert(...)`, preventing Postgres `ON CONFLICT DO UPDATE command cannot affect row a second time` errors when duplicate client ids are present.
+- The fix is client-side only and does not change the Supabase schema.
+
 Git hygiene update:
 
 - `app/src/supabase/` was reviewed and is safe to keep in Git because it contains source modules only. It reads `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from the environment and does not contain project credentials.

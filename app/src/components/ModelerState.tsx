@@ -57,6 +57,10 @@ import {
   createOpenedGraphEntry,
   mapCommandToJournalDraft,
 } from "./sessionJournalMapper";
+import {
+  deduplicateJournalEntries,
+  highestJournalSequence,
+} from "./journalEntries";
 import { isSupabaseConfigured } from "../supabase/client";
 import {
   deleteRemoteJournalEntry,
@@ -187,6 +191,13 @@ const ModelerState = ({
     return `journal-${journalIdRef.current}`;
   }, []);
 
+  const syncJournalIdCounter = useCallback((entries: JournalEntry[]) => {
+    journalIdRef.current = Math.max(
+      journalIdRef.current,
+      highestJournalSequence(entries),
+    );
+  }, []);
+
   const addJournalDraft = useCallback(
     (draft: Parameters<typeof createJournalEntry>[1]) => {
       setJournalEntries((current) => [
@@ -200,6 +211,7 @@ const ModelerState = ({
 
   const resetJournal = useCallback(
     (openedGraphName: string) => {
+      journalIdRef.current = 0;
       setJournalEntries([
         createOpenedGraphEntry(nextJournalId(), openedGraphName),
       ]);
@@ -404,7 +416,9 @@ const ModelerState = ({
         }
 
         if (remoteEntries.length > 0) {
-          setJournalEntries(remoteEntries);
+          const uniqueRemoteEntries = deduplicateJournalEntries(remoteEntries);
+          syncJournalIdCounter(uniqueRemoteEntries);
+          setJournalEntries(uniqueRemoteEntries);
           journalSyncGraphIdRef.current = savedGraphId;
         } else {
           await upsertRemoteJournalEntries(savedGraphId, journalEntries);
@@ -894,7 +908,10 @@ const ModelerState = ({
       .then(() => {
         setGraphName(initialGraphName);
         if (initialJournalEntries) {
-          setJournalEntries(initialJournalEntries);
+          const uniqueInitialJournalEntries =
+            deduplicateJournalEntries(initialJournalEntries);
+          syncJournalIdCounter(uniqueInitialJournalEntries);
+          setJournalEntries(uniqueInitialJournalEntries);
         } else {
           resetJournal(initialGraphName);
         }
