@@ -134,7 +134,9 @@ Accessibility update:
 
 - `app/src/App.tsx` now wraps authenticated application content and loading states in a `<main>` landmark.
 - `app/src/components/HomeState.tsx` now renders the five homepage workflow tiles as semantic buttons instead of clickable `div` elements.
-- Homepage workflow SVG images now include descriptive `alt` text.
+- Homepage workflow SVG images inside labeled buttons are now marked decorative with empty `alt` text.
+- Homepage workflow buttons now derive their accessible names from visible text, avoiding label-in-name mismatches such as `Open Modeling` vs `Modeling`.
+- The homepage workflow layout now uses a responsive grid so the app does not render as a very wide row on smaller screens.
 - `app/src/components/Examples.tsx` now labels the example search input and example preview images.
 - `app/src/components/ModelerState.tsx` and `app/src/components/DiscoveryState.tsx` now provide explicit `aria-label` values for the fixed graph-name inputs.
 - `app/src/main.tsx` now labels the React Toastify notification region and sets its role to `alert`.
@@ -501,7 +503,7 @@ Inspector/focus defaults:
 | `app/src/components/DiscoveryState.tsx` | Updated graph save flow to await async graph persistence and added an accessible label for the discovered graph-name input. |
 | `app/src/components/ConformanceCheckingState.tsx` | Updated uploaded graph save calls to await async graph persistence. |
 | `app/src/components/Examples.tsx` | Updated example opening callbacks to pass the example name into the modeler open flow, labeled the example search input, and added preview image alt text. |
-| `app/src/components/HomeState.tsx` | Updated home icon asset URLs to respect Vite's configured base path, changed homepage workflow tiles to semantic buttons, and added descriptive image alt text. |
+| `app/src/components/HomeState.tsx` | Updated home icon asset URLs to respect Vite's configured base path, changed homepage workflow tiles to semantic buttons, fixed label-in-name mismatches by using visible text as the accessible name, marked decorative button icons with empty alt text, and changed the workflow layout to a responsive grid. |
 | `app/src/main.tsx` | Labeled the Toastify notification region and set its role to `alert`. |
 | `app/src/components/ModelerState.tsx` | Added side panel state, selection tracking, focus filter wiring, journal state, journal command subscriptions, journal reset flow, notebook toolbar icon, async graph save handling, example-name handling, explicit current-graph identity handling for saved vs unsaved opens including BPMN conversion, Supabase journal sync for saved graphs, Supabase Modeling draft autosave/restore, a draft autosave status indicator, an accessible graph-name label, persistent draft error toasts, Supabase persistence error details, and sign-out persistence warnings. |
 | `app/src/components/ModelingSidePanel.tsx` | New reusable right-side panel with `Details` and `Journal` tabs. |
