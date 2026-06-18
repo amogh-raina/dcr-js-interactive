@@ -131,6 +131,8 @@ Deployment configuration update:
 - `vercel.json` was added at the repository root so Vercel can install the workspace dependencies, build `app`, and publish `app/dist`.
 - `app/.env.example` now includes `VITE_BASE_PATH=/dcr-js/`.
 - `supabase/README.md` now includes Vercel deployment environment variables and Supabase Auth URL/redirect guidance.
+- `app/vite.config.ts` now detects Vercel through the `VERCEL` environment variable and defaults the base path to `/` on Vercel. This prevents blank deployments when `VITE_BASE_PATH=/` was not explicitly configured.
+- `supabase/README.md` now explains why `VITE_BASE_PATH=/` is needed for Vercel root-domain deployments.
 
 Git hygiene update:
 
@@ -456,7 +458,7 @@ Inspector/focus defaults:
 | `app/src/vite-env.d.ts` | New Vite environment typings for Supabase variables. |
 | `app/.env.example` | New example environment file for Supabase URL and anon key. |
 | `.gitignore` | Added explicit ignores for `app/dist/` build output and `tmp/` diagnostics. |
-| `app/vite.config.ts` | Updated Vite base path configuration to use `VITE_BASE_PATH`, defaulting to `/dcr-js/`. |
+| `app/vite.config.ts` | Updated Vite base path configuration to use `VITE_BASE_PATH`, defaulting to `/dcr-js/` normally and `/` on Vercel. |
 | `app/src/utilComponents/basePath.ts` | New helper for generating public asset URLs that work under both `/dcr-js/` and root deployments such as Vercel. |
 | `vercel.json` | New Vercel deployment config for the monorepo root, building `app` and publishing `app/dist`. |
 | `supabase/migrations/20260618160000_initial_persistence.sql` | New database migration for graph persistence, graph versions, journal entries, modeling drafts, Row Level Security, and university-email enforcement. |

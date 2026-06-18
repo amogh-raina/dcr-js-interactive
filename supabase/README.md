@@ -120,6 +120,10 @@ VITE_BASE_PATH=/
 
 Use only the Supabase anon public key. Do not use the service-role key.
 
+`VITE_BASE_PATH=/` is important on Vercel because the app is served from the
+domain root. The Vite config also detects Vercel and defaults to `/` there, but
+setting the variable explicitly keeps the deployment easy to inspect.
+
 In Supabase Auth URL configuration, set the production Site URL to your Vercel production URL, for example:
 
 ```txt
