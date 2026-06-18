@@ -49,11 +49,7 @@ Purpose:
 
 - Add the official Supabase JavaScript client dependency.
 - Gate the app behind Supabase Auth when `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are configured.
-- Restrict login/data access to university-affiliated email domains:
-  - `@ku.dk`
-  - `@di.ku.dk`
-  - `@dtu.dk`
-  - `@jur.ku.dk`
+- The original implementation restricted login/data access to university-affiliated email domains. That has since been replaced by Google OAuth for any signed-in Google user.
 - Load saved graphs from the `graphs` table after sign-in.
 - Save graphs to Postgres through Supabase instead of only saving to an in-memory `Map`.
 - Create a `graph_versions` row for each graph save.
@@ -61,18 +57,18 @@ Purpose:
 
 Key implementation details:
 
-- `AuthGate.tsx` provides a minimal sign-in/create-account screen.
+- `AuthGate.tsx` now provides a Google OAuth sign-in screen.
 - `AuthStatus.tsx` shows the signed-in email and a sign-out button.
-- `client.ts` centralizes Supabase setup and allowed-email-domain checks.
+- `client.ts` centralizes Supabase setup.
 - `graphs.ts` handles graph loading and graph saving.
 - `App.tsx` now owns Supabase session loading, auth-state subscriptions, remote graph loading, and async graph saving.
-- `StateProps.saveGraph` now returns `Promise<boolean>` because database persistence is asynchronous.
+- `StateProps.saveGraph` now returns `Promise<DCRGraphEntry | null>` because database persistence is asynchronous and callers may need the saved graph id.
 - Existing save callers in Modeling, Discovery, and Conformance were updated to await the async save where the result matters.
 - `supabase/migrations/20260618160000_initial_persistence.sql` creates:
   - `graphs`
   - `graph_versions`
   - `journal_entries`
-- The migration enables Row Level Security and includes server-side email-domain checks.
+- The initial migration enables Row Level Security and included server-side email-domain checks; the later Google-auth migration relaxes those helpers to authenticated-user checks.
 - The migration prepares a journal table, but the journal UI is not yet wired to persist entries in Supabase.
 
 Current Supabase persistence scope:
@@ -114,14 +110,25 @@ Supabase verification update:
 
 - `supabase/verification/modeling_persistence_checks.sql` was added as a read-only SQL verification script for a real Supabase project after applying the migration.
 - `supabase/README.md` now documents how to configure frontend env vars, apply the migration, run the verification script, and manually test Modeling persistence in the browser.
-- The verification script checks Modeling persistence tables, RLS enablement, expected policies, email-domain helper functions, the auth email trigger, and representative allowed/disallowed email domains.
-- `supabase/fallbacks/without_auth_trigger.sql` was added for Supabase projects that do not allow creating triggers on `auth.users` from the SQL editor. The fallback keeps frontend and RLS email-domain enforcement while allowing the auth-trigger verification row to fail.
+- The verification script checks Modeling persistence tables, RLS enablement, expected policies, compatibility auth helper functions, and that the old auth email trigger has been removed.
+- `supabase/fallbacks/without_auth_trigger.sql` was added for the original university-domain setup. It is retained for history but is no longer part of the current Google-auth path.
 
 Supabase environment placement correction:
 
 - The local Supabase credential file should be `app/.env.local`, next to `app/package.json` and `app/vite.config.ts`.
 - A mistakenly placed `app/src/.env.local` file was moved to `app/.env.local` without reading or printing its contents.
 - `app/.env.example` remains the template file to copy from.
+
+Google auth update:
+
+- `app/src/components/AuthGate.tsx` now uses Supabase Google OAuth through `signInWithOAuth({ provider: "google" })`.
+- The email/password sign-in and create-account form was removed from the app UI.
+- `app/src/App.tsx` no longer rejects sessions based on university email domains.
+- `app/src/supabase/client.ts` no longer exports university-domain allowlist helpers.
+- `supabase/migrations/20260618183000_allow_google_authenticated_users.sql` was added to remove the old `auth.users` university-domain trigger and relax the compatibility helper functions so existing RLS policies allow any signed-in user.
+- `supabase/verification/modeling_persistence_checks.sql` was updated to expect the old auth trigger to be removed and representative emails to be accepted.
+- `supabase/README.md` now documents Google Cloud OAuth client setup, Supabase Google provider setup, and the required migration order.
+- The Supabase CLI was not installed in this environment, so the new migration file was added manually under the existing timestamped migration convention.
 
 Deployment configuration update:
 
@@ -449,7 +456,7 @@ Inspector/focus defaults:
 | File | Change |
 | --- | --- |
 | `app/src/App.tsx` | Added Supabase auth session handling, sign-in gating, remote graph loading, async graph saving, graph version creation through the Supabase graph service, and signed-in status rendering. |
-| `app/src/supabase/client.ts` | New Supabase client/config module with allowed university email-domain checks. |
+| `app/src/supabase/client.ts` | New Supabase client/config module. The original university-domain helpers were removed when the app moved to Google OAuth. |
 | `app/src/supabase/graphs.ts` | New graph persistence service for loading saved graphs and saving graph XML to Supabase/Postgres. |
 | `app/src/supabase/journal.ts` | New journal persistence service for loading, upserting, updating, and deleting Modeling journal entries in Supabase/Postgres. |
 | `app/src/supabase/modelingDrafts.ts` | New Modeling draft persistence service for loading and autosaving the signed-in user's latest graph XML, graph name, saved graph link, and journal entries. |
@@ -461,7 +468,8 @@ Inspector/focus defaults:
 | `app/vite.config.ts` | Updated Vite base path configuration to use `VITE_BASE_PATH`, defaulting to `/dcr-js/` normally and `/` on Vercel. |
 | `app/src/utilComponents/basePath.ts` | New helper for generating public asset URLs that work under both `/dcr-js/` and root deployments such as Vercel. |
 | `vercel.json` | New Vercel deployment config for the monorepo root, building `app` and publishing `app/dist`. |
-| `supabase/migrations/20260618160000_initial_persistence.sql` | New database migration for graph persistence, graph versions, journal entries, modeling drafts, Row Level Security, and university-email enforcement. |
+| `supabase/migrations/20260618160000_initial_persistence.sql` | New database migration for graph persistence, graph versions, journal entries, modeling drafts, Row Level Security, and the original university-email enforcement. |
+| `supabase/migrations/20260618183000_allow_google_authenticated_users.sql` | New migration that removes the university-email auth trigger and changes the compatibility auth helper functions to allow any authenticated user. |
 | `supabase/README.md` | New setup note for configuring frontend env vars, applying the Supabase migration, running verification SQL, and manually testing Modeling persistence. |
 | `supabase/fallbacks/without_auth_trigger.sql` | New fallback SQL for Supabase projects where the optional auth-users email-domain trigger cannot be installed. |
 | `supabase/verification/modeling_persistence_checks.sql` | New read-only verification query for confirming the Supabase Modeling persistence migration was applied correctly. |

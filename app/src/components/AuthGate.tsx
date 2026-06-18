@@ -1,12 +1,9 @@
 import { useState } from "react";
+import { FcGoogle } from "react-icons/fc";
 import styled from "styled-components";
 import { toast } from "react-toastify";
 import Button from "../utilComponents/Button";
-import {
-  allowedEmailDomains,
-  isAllowedUniversityEmail,
-  supabase,
-} from "../supabase/client";
+import { supabase } from "../supabase/client";
 
 const Page = styled.main`
   min-height: 100vh;
@@ -41,70 +38,42 @@ const HelpText = styled.p`
   line-height: 1.4;
 `;
 
-const Field = styled.label`
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  font-weight: 600;
-`;
-
-const Input = styled.input`
-  box-sizing: border-box;
+const GoogleButton = styled(Button)`
+  display: inline-flex;
+  justify-content: center;
+  gap: 0.6rem;
   width: 100%;
-  padding: 0.7rem;
-  border: 1px solid #aaa;
-  border-radius: 4px;
-  font: inherit;
+  cursor: pointer;
 `;
 
-const Actions = styled.div`
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-`;
+function authRedirectUrl() {
+  return new URL(import.meta.env.BASE_URL, window.location.origin).toString();
+}
 
 function AuthGate() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const submit = async (mode: "sign-in" | "sign-up") => {
+  const signInWithGoogle = async () => {
     if (!supabase) {
       toast.error("Supabase is not configured.");
       return;
     }
 
-    if (!isAllowedUniversityEmail(email)) {
-      toast.error(
-        `Use an approved university email: ${allowedEmailDomains.join(", ")}`,
-      );
-      return;
-    }
-
     try {
       setLoading(true);
-      const credentials = {
-        email: email.trim().toLowerCase(),
-        password,
-      };
-      const { error } =
-        mode === "sign-in"
-          ? await supabase.auth.signInWithPassword(credentials)
-          : await supabase.auth.signUp(credentials);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: authRedirectUrl(),
+        },
+      });
 
       if (error) {
         throw error;
       }
-
-      toast.success(
-        mode === "sign-in"
-          ? "Signed in."
-          : "Account created. Check your email if confirmation is enabled.",
-      );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Authentication failed.");
-    } finally {
       setLoading(false);
+      toast.error(error instanceof Error ? error.message : "Google sign in failed.");
     }
   };
 
@@ -113,34 +82,16 @@ function AuthGate() {
       <Panel>
         <Title>DCR-js Sign In</Title>
         <HelpText>
-          Use a university email ending in {allowedEmailDomains.join(", ")}.
+          Continue with your Google account to save and restore modeling work.
         </HelpText>
-        <Field>
-          Email
-          <Input
-            autoComplete="email"
-            onChange={(event) => setEmail(event.target.value)}
-            type="email"
-            value={email}
-          />
-        </Field>
-        <Field>
-          Password
-          <Input
-            autoComplete="current-password"
-            onChange={(event) => setPassword(event.target.value)}
-            type="password"
-            value={password}
-          />
-        </Field>
-        <Actions>
-          <Button disabled={loading} onClick={() => submit("sign-in")} type="button">
-            Sign in
-          </Button>
-          <Button disabled={loading} onClick={() => submit("sign-up")} type="button">
-            Create account
-          </Button>
-        </Actions>
+        <GoogleButton
+          disabled={loading}
+          onClick={() => void signInWithGoogle()}
+          type="button"
+        >
+          <FcGoogle aria-hidden="true" />
+          {loading ? "Opening Google..." : "Continue with Google"}
+        </GoogleButton>
       </Panel>
     </Page>
   );

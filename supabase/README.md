@@ -1,6 +1,6 @@
 # Supabase Setup
 
-This folder contains the first database migration for the multi-user DCR-js persistence layer.
+This folder contains the database migrations for the multi-user DCR-js persistence layer.
 
 ## Required Frontend Environment
 
@@ -15,9 +15,42 @@ If these variables are absent, the app keeps the previous local in-memory behavi
 
 Only use the Supabase anon public key in `app/.env.local`. Do not put the service-role key in frontend environment variables.
 
+## Google Auth Setup
+
+The app now uses Supabase Google OAuth instead of app-local email/password
+accounts.
+
+In Google Cloud Console:
+
+1. Create a web OAuth client.
+2. Add authorized JavaScript origins:
+
+```txt
+https://dcr-js-interactive-app.vercel.app
+http://localhost:5173
+```
+
+3. Add the Supabase Google provider callback URL as an authorized redirect URI:
+
+```txt
+https://your-project-ref.supabase.co/auth/v1/callback
+```
+
+In Supabase:
+
+1. Go to `Authentication -> Providers -> Google`.
+2. Enable Google.
+3. Paste the Google OAuth client ID and client secret.
+4. Save.
+
+Do not put the Google client secret in this repository, `app/.env.local`, Vercel
+environment variables, or chat logs. It belongs only in the Supabase Dashboard.
+
 ## Migration
 
 Apply the SQL in `migrations/20260618160000_initial_persistence.sql` to a Supabase project.
+
+Then apply `migrations/20260618183000_allow_google_authenticated_users.sql`.
 
 The migration creates:
 
@@ -26,42 +59,26 @@ The migration creates:
 - `journal_entries`
 - `modeling_drafts`
 
-It also enables Row Level Security and restricts graph data access to authenticated users with emails ending in:
+It also enables Row Level Security and restricts graph data access to the signed-in user who owns the graph or draft.
 
-- `@ku.dk`
-- `@di.ku.dk`
-- `@dtu.dk`
-- `@jur.ku.dk`
+The Google-auth migration removes the previous university-email auth trigger and changes the old email-domain helper functions to allow any authenticated user. Existing policy names are kept for compatibility with the initial migration.
 
 The frontend integration persists saved graphs, graph versions, Modeling journal entries for saved graphs, and the user's latest Modeling draft.
 
 The Modeling draft stores the current graph XML, graph name, optional saved graph link, and journal entries. This protects newly created, uploaded, and example-based graphs before the user explicitly saves them as named graphs.
 
-### Auth Trigger Fallback
-
-The migration includes a trigger on `auth.users` to reject account creation for disallowed email domains at the Auth table boundary.
-
-If your Supabase project does not allow creating triggers on `auth.users` from the SQL editor, use `fallbacks/without_auth_trigger.sql` after applying the rest of the migration.
-
-With that fallback:
-
-- the frontend still blocks disallowed email domains before sign-up/sign-in
-- Row Level Security still blocks disallowed email domains from reading or writing Modeling data
-- disallowed Supabase Auth accounts may exist, but they cannot access `graphs`, `graph_versions`, `journal_entries`, or `modeling_drafts`
-- the verification script will show the auth trigger check as `fail`; all table/RLS/policy/email helper checks should still pass
-
 ## Verification
 
-After applying the migration, run `verification/modeling_persistence_checks.sql` in the Supabase SQL editor.
+After applying both migrations, run `verification/modeling_persistence_checks.sql` in the Supabase SQL editor.
 
 The verification query checks:
 
 - required Modeling persistence tables exist
 - Row Level Security is enabled
 - expected policies exist
-- university email-domain helpers exist
-- the auth trigger exists
-- allowed and disallowed email domains evaluate as expected
+- compatibility auth helper functions exist
+- the old university-domain auth trigger has been removed
+- representative email addresses are accepted by the relaxed helper
 
 Every returned row should have `result = pass`.
 
@@ -81,8 +98,8 @@ http://localhost:5173/dcr-js
 
 Recommended Modeling checks:
 
-1. Sign in or create an account with an allowed email domain.
-2. Confirm a disallowed email domain is rejected.
+1. Click `Continue with Google`.
+2. Complete Google sign-in.
 3. Open Modeling.
 4. Create a new graph and add at least one event.
 5. Wait for the draft status to show `Draft saved`.
@@ -91,14 +108,6 @@ Recommended Modeling checks:
 8. Save the graph explicitly.
 9. Refresh again and confirm the saved graph is available from saved graphs.
 10. Open an XML upload or example graph, refresh before saving, and confirm it restores as a draft.
-
-For local auth testing, Supabase email confirmation can either be configured with the local site URL:
-
-```txt
-http://localhost:5173/dcr-js
-```
-
-or temporarily disabled in the Supabase Auth settings while testing.
 
 ## Vercel Deployment
 
@@ -140,6 +149,7 @@ Keep the local development redirect URL too:
 
 ```txt
 http://localhost:5173/dcr-js
+http://localhost:5173/dcr-js/**
 ```
 
 For GitHub Pages or any deployment under `/dcr-js/`, keep:

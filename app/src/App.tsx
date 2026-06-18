@@ -17,7 +17,6 @@ import {
   type MarkerNotation,
 } from "./types";
 import {
-  isAllowedUniversityEmail,
   isSupabaseConfigured,
   supabase,
 } from "./supabase/client";
@@ -111,13 +110,6 @@ const App = () => {
     const client = supabase;
 
     const acceptSession = (session: Session | null) => {
-      if (session && !isAllowedUniversityEmail(session.user.email)) {
-        toast.error("Use an approved university email to access this app.");
-        void client.auth.signOut();
-        setAuthSession(null);
-        return;
-      }
-
       setAuthSession(session);
 
       if (!session) {

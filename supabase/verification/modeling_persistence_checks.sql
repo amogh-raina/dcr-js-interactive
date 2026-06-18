@@ -24,12 +24,9 @@ expected_policies(table_name, policy_name) as (
 ),
 email_checks(email, expected) as (
   values
-    ('alice@ku.dk', true),
-    ('alice@di.ku.dk', true),
-    ('alice@dtu.dk', true),
-    ('alice@jur.ku.dk', true),
-    ('alice@example.com', false),
-    ('alice@ku.dk.example.com', false)
+    ('alice@gmail.com', true),
+    ('alice@example.com', true),
+    ('alice@ku.dk', true)
 ),
 checks as (
   select
@@ -84,20 +81,8 @@ checks as (
   union all
 
   select
-    'function exists: reject_disallowed_auth_email' as check_name,
-    exists (
-      select 1
-      from pg_proc
-      join pg_namespace on pg_namespace.oid = pg_proc.pronamespace
-      where pg_namespace.nspname = 'public'
-        and pg_proc.proname = 'reject_disallowed_auth_email'
-    ) as passed
-
-  union all
-
-  select
-    'auth trigger exists: auth_users_reject_disallowed_email' as check_name,
-    exists (
+    'auth trigger removed: auth_users_reject_disallowed_email' as check_name,
+    not exists (
       select 1
       from pg_trigger
       join pg_class on pg_class.oid = pg_trigger.tgrelid
@@ -111,7 +96,19 @@ checks as (
   union all
 
   select
-    'email domain check: ' || email_checks.email as check_name,
+    'function exists: reject_disallowed_auth_email' as check_name,
+    exists (
+      select 1
+      from pg_proc
+      join pg_namespace on pg_namespace.oid = pg_proc.pronamespace
+      where pg_namespace.nspname = 'public'
+        and pg_proc.proname = 'reject_disallowed_auth_email'
+    ) as passed
+
+  union all
+
+  select
+    'authenticated email accepted: ' || email_checks.email as check_name,
     public.is_allowed_university_email_address(email_checks.email) = email_checks.expected as passed
   from email_checks
 )
