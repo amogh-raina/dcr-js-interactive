@@ -1,4 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
+import { toast } from "react-toastify";
 import ModelerState from "./components/ModelerState";
 import HomeState from "./components/HomeState";
 import SimulatorState from "./components/SimulatorState";
@@ -6,12 +8,20 @@ import ConformanceCheckingState from "./components/ConformanceCheckingState";
 import type { EventLog, RoleTrace } from "dcr-engine";
 import DiscoveryState from "./components/DiscoveryState";
 import EventLogGenerationState from "./components/EventLogGenerationState";
+import AuthGate from "./components/AuthGate";
+import AuthStatus from "./components/AuthStatus";
 import {
   isColoredRelations,
   isMarkerNotation,
   type ColoredRelations,
   type MarkerNotation,
 } from "./types";
+import {
+  isAllowedUniversityEmail,
+  isSupabaseConfigured,
+  supabase,
+} from "./supabase/client";
+import { loadRemoteGraphs, saveRemoteGraph } from "./supabase/graphs";
 
 export const StateEnum = {
   Modeler: "Modeler",
@@ -25,6 +35,7 @@ export const StateEnum = {
 export type StateEnum = (typeof StateEnum)[keyof typeof StateEnum];
 
 export interface DCRGraphEntry {
+  id?: string;
   name: string;
   graph: string;
 }
@@ -48,7 +59,7 @@ export interface StateProps {
   setCurrentGraph: (graphName: string | null) => void;
   currentLog: EventLogEntry | null;
   setCurrentLog: (logName: string | null) => void;
-  saveGraph: (name: string, graph: string) => boolean;
+  saveGraph: (name: string, graph: string) => Promise<DCRGraphEntry | null>;
   saveLog: (name: string, log: EventLog<RoleTrace>) => boolean;
   pickGraph: (name?: string | null) => void;
   pickLog: (name?: string | null) => void;
@@ -60,6 +71,9 @@ export interface StateProps {
 
 const App = () => {
   const [state, setState] = useState<StateEnum>(StateEnum.Home);
+  const [authSession, setAuthSession] = useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = useState(isSupabaseConfigured);
+  const [graphsLoading, setGraphsLoading] = useState(false);
 
   const [markerNotation, setMarkerNotation] =
     useState<MarkerNotation>("TAL2023");
@@ -89,24 +103,118 @@ const App = () => {
     return logs.get(currentLogName) ?? null;
   }, [logs, currentLogName]);
 
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      return;
+    }
+
+    const client = supabase;
+
+    const acceptSession = (session: Session | null) => {
+      if (session && !isAllowedUniversityEmail(session.user.email)) {
+        toast.error("Use an approved university email to access this app.");
+        void client.auth.signOut();
+        setAuthSession(null);
+        return;
+      }
+
+      setAuthSession(session);
+
+      if (!session) {
+        setGraphs(new Map());
+        setCurrentGraphName(null);
+      }
+    };
+
+    client.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (error) {
+          throw error;
+        }
+
+        acceptSession(data.session);
+      })
+      .catch((error) => {
+        console.error(error);
+        toast.error("Unable to check Supabase session.");
+      })
+      .finally(() => setAuthLoading(false));
+
+    const { data } = client.auth.onAuthStateChange((_event, session) => {
+      acceptSession(session);
+    });
+
+    return () => {
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !authSession) {
+      return;
+    }
+
+    let active = true;
+    setGraphsLoading(true);
+
+    loadRemoteGraphs()
+      .then((repository) => {
+        if (!active) {
+          return;
+        }
+
+        setGraphs(repository);
+        setCurrentGraphName((current) =>
+          current && repository.has(current) ? current : null,
+        );
+      })
+      .catch((error) => {
+        console.error(error);
+        toast.error("Unable to load saved graphs.");
+      })
+      .finally(() => {
+        if (active) {
+          setGraphsLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [authSession]);
+
   const saveGraph = useCallback(
-    (name: string, graph: string) => {
-      if (
+    async (name: string, graph: string) => {
+      const canSave =
         !graphs.has(name) ||
         name === currentGraphName ||
-        window.confirm("Overwrite existing graph?")
-      ) {
+        window.confirm("Overwrite existing graph?");
+
+      if (!canSave) {
+        return null;
+      }
+
+      try {
+        const graphEntry =
+          isSupabaseConfigured && authSession
+            ? await saveRemoteGraph(authSession.user.id, name, graph)
+            : { name, graph };
+
         setGraphs((prev) => {
           const newMap = new Map(prev);
-          newMap.set(name, { name, graph });
+          newMap.set(name, graphEntry);
           return newMap;
         });
         setCurrentGraphName(name);
-        return true;
+        return graphEntry;
+      } catch (error) {
+        console.error(error);
+        toast.error("Unable to save graph to the database.");
+        return null;
       }
-      return false;
     },
-    [graphs, currentGraphName],
+    [authSession, graphs, currentGraphName],
   );
 
   const saveLog = useCallback(
@@ -163,7 +271,20 @@ const App = () => {
     }
   }, []);
 
-  switch (state) {
+  if (isSupabaseConfigured && authLoading) {
+    return <div>Checking sign in...</div>;
+  }
+
+  if (isSupabaseConfigured && !authSession) {
+    return <AuthGate />;
+  }
+
+  if (isSupabaseConfigured && graphsLoading) {
+    return <div>Loading saved graphs...</div>;
+  }
+
+  const stateContent = (() => {
+    switch (state) {
     case StateEnum.Modeler:
       return (
         <ModelerState
@@ -296,7 +417,22 @@ const App = () => {
           changeColoredRelations={changeColoredRelations}
         />
       );
-  }
+    }
+  })();
+
+  return (
+    <>
+      {isSupabaseConfigured && authSession && (
+        <AuthStatus
+          email={authSession.user.email ?? "Signed in"}
+          onSignOut={() => {
+            void supabase?.auth.signOut();
+          }}
+        />
+      )}
+      {stateContent}
+    </>
+  );
 };
 
 export default App;

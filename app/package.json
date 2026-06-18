@@ -8,6 +8,7 @@
     "predeploy": "tsc -b && vite build"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.108.2",
     "diagram-js": "^15.2.4",
     "file-saver": "^2.0.5",
     "react": "^19.2.0",

@@ -173,8 +173,8 @@ function handleEvent(event, xml, bpmn, parent, parentMap) {
         handleEvent(subEvent, xml, bpmn, parent["dcr:nesting"][parent["dcr:nesting"].length - 1], parentMap);
       }
     }
-  } else if (event.$.type === 'subprocess') {
-    // Subprocess event
+  } else if (event.$.type === 'subprocess' || event.$.type === 'form') {
+    // Subprocess/form container event
     parent["dcr:subProcess"].push({
       $: {
         id: event.$.id,

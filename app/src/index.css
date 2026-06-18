@@ -32,3 +32,37 @@ body,
 .simulating .djs-element .djs-hit-stroke {
   cursor: default;
 }
+
+.djs-element.dcr-quick-connect-source {
+  cursor: crosshair;
+}
+
+.djs-element.dcr-quick-connect-source .djs-outline {
+  stroke: black;
+  stroke-dasharray: 4 3;
+  stroke-width: 2px;
+}
+
+.djs-element.dcr-dimmed .djs-visual {
+  opacity: 0.16;
+}
+
+.djs-element.dcr-context .djs-visual {
+  opacity: 0.52;
+}
+
+.djs-element.dcr-focus .djs-visual {
+  opacity: 1;
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.45));
+}
+
+.djs-element.dcr-focus .djs-outline {
+  stroke: black;
+  stroke-width: 2px;
+}
+
+.djs-element.dcr-hidden .djs-visual,
+.djs-element.dcr-hidden .djs-hit {
+  opacity: 0;
+  pointer-events: none;
+}

@@ -1,0 +1,11 @@
+{
+  "buildCommand": "yarn workspace app predeploy",
+  "installCommand": "yarn install --frozen-lockfile",
+  "outputDirectory": "app/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

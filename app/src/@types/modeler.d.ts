@@ -17,6 +17,12 @@ class DCRModeler {
     value: "HM2011" | "DCR Solutions" | "TAL2023"
   ): void;
   setSetting(key: "blackRelations", value: boolean): void;
+  setFocusFilter(
+    filter: {
+      selectedId: string;
+      visibleRelationTypes: string[];
+    } | null
+  ): void;
 
   on(channel: string, callback: (event: any) => void);
   off(channel: string, callback: (event: any) => void);

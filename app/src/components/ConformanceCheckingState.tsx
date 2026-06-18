@@ -638,7 +638,7 @@ const ConformanceCheckingState = ({
                       format: false,
                     });
 
-                    saveGraph(file.name, data.xml);
+                    await saveGraph(file.name, data.xml);
                   } catch (e) {
                     if (e instanceof Error && e.cause === "Validation") {
                       toast.error(e.message);
@@ -697,7 +697,7 @@ const ConformanceCheckingState = ({
                       format: false,
                     });
 
-                    saveGraph(file.name, data.xml);
+                    await saveGraph(file.name, data.xml);
                   } catch (e) {
                     if (e instanceof Error && e.cause === "Validation") {
                       toast.error(e.message);

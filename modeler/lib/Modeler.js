@@ -27,6 +27,7 @@ import LabelEditingModule from './features/label-editing';
 import ModelingModule from './features/modeling';
 import MoveModule from 'diagram-js/lib/features/move';
 import PaletteModule from './features/palette';
+import QuickConnectModule from './features/quick-connect';
 import ReplacePreviewModule from './features/replace-preview';
 import ResizeModule from 'diagram-js/lib/features/resize';
 import SnappingModule from './features/snapping';
@@ -111,6 +112,7 @@ Modeler.prototype._modelingModules = [
   ResizeModule,
   SnappingModule,
   PopupMenuModule,
+  QuickConnectModule,
   SettingsModule
 ];
 

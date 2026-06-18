@@ -1,6 +1,7 @@
 import styled from "styled-components";
 import { StateEnum, type StateProps } from "../App";
 import FlexBox from "../utilComponents/FlexBox";
+import { basePath } from "../utilComponents/basePath";
 
 const Container = styled.div`
   height: 100%;
@@ -52,35 +53,35 @@ function HomeState({ setState }: StateProps) {
             <br />
             Modeling
           </ImgLabel>
-          <Img src="/dcr-js/icons/modeling.svg" />
+          <Img src={basePath("/icons/modeling.svg")} />
         </ImgContainer>
         <ImgContainer onClick={() => setState(StateEnum.Simulator)}>
           <ImgLabel>
             <br />
             Simulation
           </ImgLabel>
-          <Img src="/dcr-js/icons/simulation.svg" />
+          <Img src={basePath("/icons/simulation.svg")} />
         </ImgContainer>
         <ImgContainer onClick={() => setState(StateEnum.Conformance)}>
           <ImgLabel>
             <br />
             Conformance
           </ImgLabel>
-          <Img src="/dcr-js/icons/conformance.svg" />
+          <Img src={basePath("/icons/conformance.svg")} />
         </ImgContainer>
         <ImgContainer onClick={() => setState(StateEnum.Discovery)}>
           <ImgLabel>
             <br />
             Discovery
           </ImgLabel>
-          <Img src="/dcr-js/icons/discovery.svg" />
+          <Img src={basePath("/icons/discovery.svg")} />
         </ImgContainer>
         <ImgContainer onClick={() => setState(StateEnum.EventLogGeneration)}>
           <ImgLabel>
             <br />
             Log Generation
           </ImgLabel>
-          <Img src="/dcr-js/icons/logGeneration.svg" />
+          <Img src={basePath("/icons/logGeneration.svg")} />
         </ImgContainer>
       </FlexBox>
     </Container>

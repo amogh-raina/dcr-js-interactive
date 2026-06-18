@@ -3,6 +3,7 @@ import Popup from "../utilComponents/Popup";
 import styled from "styled-components";
 import FlexBox from "../utilComponents/FlexBox";
 import { toast } from "react-toastify";
+import { basePath } from "../utilComponents/basePath";
 
 const TextBox = styled.div`
   margin: 2rem;
@@ -33,8 +34,8 @@ const ExampleText = styled.h3`
 interface ExampleProps {
   examplesData: Array<string>;
   setExamplesOpen: (val: boolean) => void;
-  openCustomXML: (xml: string) => void;
-  openDCRXML: (dcrXML: string) => void;
+  openCustomXML: (xml: string, name: string) => void;
+  openDCRXML: (dcrXML: string, name: string) => void;
   setLoading: (val: boolean) => void;
 }
 
@@ -51,7 +52,7 @@ const Examples = ({
     if (confirm("Are you sure? This will override your current diagram!")) {
       setLoading(true);
 
-      fetch("/dcr-js/examples/diagrams/" + exampleStr + ".xml")
+      fetch(basePath("/examples/diagrams/" + exampleStr + ".xml"))
         .then((response) => {
           if (!response.ok) {
             toast.error("Failed to fetch example...");
@@ -64,9 +65,9 @@ const Examples = ({
           if (data) {
             if (data.includes("<?xml")) {
               // type check which type of save file. Only one of them has magic number '<?xml'
-              openCustomXML(data);
+              openCustomXML(data, exampleStr);
             } else {
-              openDCRXML(data);
+              openDCRXML(data, exampleStr);
             }
             setExamplesOpen(false);
           } else {
@@ -103,7 +104,7 @@ const Examples = ({
                   onClick={() => exampleClick(exampleStr)}
                 >
                   <ExampleText>{exampleStr}</ExampleText>
-                  <Img src={`/dcr-js/examples/images/${exampleStr}.svg`} />
+                  <Img src={basePath(`/examples/images/${exampleStr}.svg`)} />
                 </Example>
               );
             } else {

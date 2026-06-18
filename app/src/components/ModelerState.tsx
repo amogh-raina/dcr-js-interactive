@@ -1,7 +1,7 @@
 import DCRModeler from "modeler";
 
 import emptyBoardXML from "../resources/emptyBoard";
-import { useEffect, useEffectEvent, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { saveAs } from "file-saver";
 import { StateEnum, type StateProps } from "../App";
@@ -12,6 +12,7 @@ import {
   BiAnalyse,
   BiHome,
   BiLeftArrowCircle,
+  BiNotepad,
   BiPlus,
   BiSave,
   BiSolidDashboard,
@@ -41,6 +42,32 @@ import {
 import ReactiveModeler from "./ReactiveModeler";
 import TestDrivenModeling from "./TestDrivenModeling";
 import { useBPMN } from '../utilComponents/useBPMN';
+import { basePath } from "../utilComponents/basePath";
+import SelectionInspector, {
+  RELATION_TYPES,
+  type RelationTypeFilter,
+  type RelationVisibility,
+} from "./SelectionInspector";
+import ModelingSidePanel, {
+  type ModelingSidePanelTab,
+} from "./ModelingSidePanel";
+import SessionJournal, { type JournalEntry } from "./SessionJournal";
+import {
+  createJournalEntry,
+  createOpenedGraphEntry,
+  mapCommandToJournalDraft,
+} from "./sessionJournalMapper";
+import { isSupabaseConfigured } from "../supabase/client";
+import {
+  deleteRemoteJournalEntry,
+  loadRemoteJournalEntries,
+  updateRemoteJournalNote,
+  upsertRemoteJournalEntries,
+} from "../supabase/journal";
+import {
+  loadRemoteModelingDraft,
+  saveRemoteModelingDraft,
+} from "../supabase/modelingDrafts";
 
 
 
@@ -68,12 +95,48 @@ const HeatmapButton = styled(BiTestTube)<{
       : ""}
 `;
 
+const JournalButton = styled(BiNotepad)<{ $clicked: boolean }>`
+  ${(props) =>
+    props.$clicked
+      ? `
+        background-color: black !important;
+        color: white;
+      `
+      : ""}
+`;
+
+const DraftStatus = styled.span`
+  align-self: center;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #333;
+  font-size: 0.78rem;
+  white-space: nowrap;
+`;
+
 const initGraphName = "DCR-JS Graph";
+
+const journalCommands = [
+  "shape.create",
+  "shape.delete",
+  "connection.create",
+  "connection.delete",
+  "element.updateProperties",
+  "element.updateLabel",
+] as const;
+
+const initialRelationVisibility = RELATION_TYPES.reduce(
+  (acc, relationType) => ({ ...acc, [relationType]: true }),
+  {} as RelationVisibility,
+);
 
 const ModelerState = ({
   setState,
   savedGraphs,
   currentGraph,
+  setCurrentGraph,
   saveGraph: commitSaveGraph,
   coloredRelations,
   changeColoredRelations,
@@ -90,10 +153,298 @@ const ModelerState = ({
 
   // const modelerRef = useRef<DCRModeler | null>(null);
   const [modeler, setModeler] = useState<DCRModeler | null>(null);
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(
+    null,
+  );
+  const [relationVisibility, setRelationVisibility] =
+    useState<RelationVisibility>(initialRelationVisibility);
+  const [inspectorRefreshKey, setInspectorRefreshKey] = useState(0);
+  const [sidePanelTab, setSidePanelTab] =
+    useState<ModelingSidePanelTab>("details");
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
+  const [draftSaveKey, setDraftSaveKey] = useState(0);
+  const [draftStatus, setDraftStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const journalIdRef = useRef(0);
+  const draftRestoreDoneRef = useRef(false);
+  const journalSyncGraphIdRef = useRef<string | null>(null);
 
   const [graphName, setGraphName] = useState<string>(
     currentGraph?.name ?? initGraphName,
   );
+
+  const nextJournalId = useCallback(() => {
+    journalIdRef.current += 1;
+    return `journal-${journalIdRef.current}`;
+  }, []);
+
+  const addJournalDraft = useCallback(
+    (draft: Parameters<typeof createJournalEntry>[1]) => {
+      setJournalEntries((current) => [
+        createJournalEntry(nextJournalId(), draft),
+        ...current,
+      ]);
+      setDraftSaveKey((current) => current + 1);
+    },
+    [nextJournalId],
+  );
+
+  const resetJournal = useCallback(
+    (openedGraphName: string) => {
+      setJournalEntries([
+        createOpenedGraphEntry(nextJournalId(), openedGraphName),
+      ]);
+      setDraftSaveKey((current) => current + 1);
+    },
+    [nextJournalId],
+  );
+
+  const addFreeFormJournalNote = useCallback(
+    (note: string) => {
+      setJournalEntries((current) => [
+        {
+          ...createJournalEntry(nextJournalId(), {
+            kind: "note",
+            title: "Session note",
+            summary: "Free-form note added by the modeler.",
+            userCreated: true,
+          }),
+          note,
+        },
+        ...current,
+      ]);
+      setDraftSaveKey((current) => current + 1);
+    },
+    [nextJournalId],
+  );
+
+  const updateJournalNote = useCallback(
+    (entryId: string, note: string) => {
+      setJournalEntries((current) =>
+        current.map((entry) =>
+          entry.id === entryId
+            ? {
+                ...entry,
+                note,
+              }
+          : entry,
+        ),
+      );
+      setDraftSaveKey((current) => current + 1);
+
+      const graphId = currentGraph?.id;
+      if (isSupabaseConfigured && graphId) {
+        updateRemoteJournalNote(graphId, entryId, note).catch((error) => {
+          console.error(error);
+          toast.error("Unable to save journal note.");
+        });
+      }
+    },
+    [currentGraph?.id],
+  );
+
+  const deleteJournalEntry = useCallback(
+    (entryId: string) => {
+      setJournalEntries((current) =>
+        current.filter((entry) => entry.id !== entryId || !entry.userCreated),
+      );
+      setDraftSaveKey((current) => current + 1);
+
+      const graphId = currentGraph?.id;
+      if (isSupabaseConfigured && graphId) {
+        deleteRemoteJournalEntry(graphId, entryId).catch((error) => {
+          console.error(error);
+          toast.error("Unable to delete journal note.");
+        });
+      }
+    },
+    [currentGraph?.id],
+  );
+
+  const syncJournalEntries = useCallback(
+    async (graphId: string, entries: JournalEntry[] = journalEntries) => {
+      if (!isSupabaseConfigured) {
+        return;
+      }
+
+      try {
+        await upsertRemoteJournalEntries(graphId, entries);
+        journalSyncGraphIdRef.current = graphId;
+      } catch (error) {
+        console.error(error);
+        toast.error("Unable to sync journal entries.");
+      }
+    },
+    [journalEntries],
+  );
+
+  const refreshInspector = useCallback(() => {
+    setInspectorRefreshKey((current) => current + 1);
+  }, []);
+
+  const markDraftDirty = useCallback(() => {
+    setDraftSaveKey((current) => current + 1);
+  }, []);
+
+  const toggleRelationType = useCallback((relationType: RelationTypeFilter) => {
+    setRelationVisibility((current) => ({
+      ...current,
+      [relationType]: !current[relationType],
+    }));
+  }, []);
+
+  const updateSelection = useCallback(
+    (event: { newSelection?: Array<{ id: string; type: string }> }) => {
+      const selectedElement = event.newSelection?.find((element) =>
+        ["dcr:Event", "dcr:SubProcess", "dcr:Nesting", "dcr:Relation"].includes(
+          element.type,
+        ),
+      );
+
+      setSelectedElementId(selectedElement?.id ?? null);
+      if (selectedElement) {
+        setSidePanelTab("details");
+      }
+      refreshInspector();
+    },
+    [refreshInspector],
+  );
+
+  useEffect(() => {
+    if (!modeler || !selectedElementId) {
+      modeler?.setFocusFilter(null);
+      return;
+    }
+
+    modeler.setFocusFilter({
+      selectedId: selectedElementId,
+      visibleRelationTypes: RELATION_TYPES.filter(
+        (relationType) => relationVisibility[relationType],
+      ),
+    });
+
+    return () => modeler.setFocusFilter(null);
+  }, [modeler, selectedElementId, relationVisibility, inspectorRefreshKey]);
+
+  useEffect(() => {
+    if (!modeler) {
+      return;
+    }
+
+    const handlers = journalCommands.map((command) => {
+      const channel = `commandStack.${command}.executed`;
+      const handler = (event: unknown) => {
+        const draft = mapCommandToJournalDraft(command, event as never);
+        if (draft) {
+          addJournalDraft(draft);
+        }
+      };
+
+      modeler.on(channel, handler);
+
+      return { channel, handler };
+    });
+
+    return () => {
+      handlers.forEach(({ channel, handler }) => {
+        modeler.off(channel, handler);
+      });
+    };
+  }, [addJournalDraft, modeler]);
+
+  useEffect(() => {
+    const graphId = currentGraph?.id;
+    if (!isSupabaseConfigured || !graphId) {
+      return;
+    }
+
+    const savedGraphId = graphId;
+    let active = true;
+
+    async function loadOrFlushJournal() {
+      try {
+        if (journalEntries.length > 1) {
+          await upsertRemoteJournalEntries(savedGraphId, journalEntries);
+          journalSyncGraphIdRef.current = savedGraphId;
+          return;
+        }
+
+        const remoteEntries = await loadRemoteJournalEntries(savedGraphId);
+        if (!active) {
+          return;
+        }
+
+        if (remoteEntries.length > 0) {
+          setJournalEntries(remoteEntries);
+          journalSyncGraphIdRef.current = savedGraphId;
+        } else {
+          await upsertRemoteJournalEntries(savedGraphId, journalEntries);
+          journalSyncGraphIdRef.current = savedGraphId;
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error("Unable to load journal entries.");
+      }
+    }
+
+    void loadOrFlushJournal();
+
+    return () => {
+      active = false;
+    };
+  }, [currentGraph?.id]);
+
+  useEffect(() => {
+    const graphId = currentGraph?.id;
+    if (!isSupabaseConfigured || !graphId || journalEntries.length === 0) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      void syncJournalEntries(graphId, journalEntries);
+    }, 700);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [currentGraph?.id, journalEntries, syncJournalEntries]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !modeler || !draftRestoreDoneRef.current) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setDraftStatus("saving");
+      modeler
+        .saveXML({ format: false })
+        .then((data: { xml: string }) =>
+          saveRemoteModelingDraft(
+            currentGraph?.id ?? null,
+            graphName,
+            data.xml,
+            journalEntries,
+          ),
+        )
+        .then(() => setDraftStatus("saved"))
+        .catch((error: unknown) => {
+          console.error(error);
+          setDraftStatus("error");
+          toast.error("Unable to autosave modeling draft.");
+        });
+    }, 900);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [
+    currentGraph?.id,
+    draftSaveKey,
+    graphName,
+    journalEntries,
+    modeler,
+  ]);
 
 
 
@@ -107,7 +458,12 @@ const ModelerState = ({
     try {
       setLoading(true);
       const data = await modeler.saveXML({ format: false });
-      if (commitSaveGraph(graphName, data.xml)) {
+      const savedGraph = await commitSaveGraph(graphName, data.xml);
+      if (savedGraph) {
+        if (savedGraph.id) {
+          await syncJournalEntries(savedGraph.id);
+          markDraftDirty();
+        }
         toast.success("Graph saved!");
         saved = true;
       }
@@ -124,7 +480,7 @@ const ModelerState = ({
 
   useEffect(() => {
     // Fetch examples
-    fetch("/dcr-js/examples/generated_examples.txt")
+    fetch(basePath("/examples/generated_examples.txt"))
       .then((response) => {
         if (!response.ok) {
           throw new Error(
@@ -147,13 +503,20 @@ const ModelerState = ({
     data: string,
     parse: ((xml: string) => Promise<void>) | undefined,
     importFn?: string,
+    savedGraphName?: string | null,
   ) {
-    const importName = importFn?.slice(0, -4);
+    const importName = importFn?.replace(/\.[^/.]+$/, "");
 
     if (parse) {
       parse(data)
         .then(() => {
-          setGraphName(importName ? importName : initGraphName);
+          const openedGraphName = importName ? importName : initGraphName;
+          setGraphName(openedGraphName);
+          setCurrentGraph(savedGraphName ?? null);
+          setSelectedElementId(null);
+          modeler?.setFocusFilter(null);
+          resetJournal(openedGraphName);
+          markDraftDirty();
         })
         .catch((e) => {
           console.log(e);
@@ -210,7 +573,7 @@ const ModelerState = ({
             icon: <BiLeftArrowCircle />,
             text: name,
             onClick: () => {
-              open(graph, modeler?.importXML, name + ".xml");
+              open(graph, modeler?.importXML, name + ".xml", name);
               setMenuOpen(false);
             },
           };
@@ -232,7 +595,7 @@ const ModelerState = ({
       icon: <BiSave />,
       text: "Save Graph",
       onClick: () => {
-        saveGraph();
+        void saveGraph();
         setMenuOpen(false);
       },
     },
@@ -275,6 +638,9 @@ const ModelerState = ({
           customElement: (
             <StyledFileUpload>
               <FileUpload accept=".bpmn,.xml" fileCallback={(name, contents) => {
+                setCurrentGraph(null);
+                resetJournal(name.replace(/\.(bpmn|xml)$/, '') || initGraphName);
+                markDraftDirty();
                 convertBpmnToDcr(contents, name);
                 setMenuOpen(false);
               }}>
@@ -455,12 +821,50 @@ const ModelerState = ({
 
  const { convertBpmnToDcr, loading: bpmnLoading } = useBPMN(modeler, setGraphName, setLoading, autoLayout);
 
-  const onInitModeler = useEffectEvent((modeler: DCRModeler) => {
+  const onInitModeler = useEffectEvent(async (modeler: DCRModeler) => {
+    let initialXml = currentGraph?.graph ?? emptyBoardXML;
+    let initialGraphName = currentGraph?.name ?? initGraphName;
+    let initialJournalEntries: JournalEntry[] | null = null;
+
+    if (!currentGraph && isSupabaseConfigured) {
+      try {
+        const draft = await loadRemoteModelingDraft();
+        if (draft) {
+          initialXml = draft.graphXml;
+          initialGraphName = draft.graphName || initGraphName;
+          initialJournalEntries =
+            draft.journalEntries.length > 0 ? draft.journalEntries : null;
+
+          if (draft.graphId && savedGraphs.has(draft.graphName)) {
+            setCurrentGraph(draft.graphName);
+          } else {
+            setCurrentGraph(null);
+          }
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error("Unable to restore modeling draft.");
+      }
+    }
+
     modeler
-      .importXML(currentGraph?.graph ?? emptyBoardXML)
+      .importXML(initialXml)
+      .then(() => {
+        setGraphName(initialGraphName);
+        if (initialJournalEntries) {
+          setJournalEntries(initialJournalEntries);
+        } else {
+          resetJournal(initialGraphName);
+        }
+        draftRestoreDoneRef.current = true;
+        setDraftStatus(isSupabaseConfigured ? "saved" : "idle");
+        markDraftDirty();
+      })
       .catch((e: Error) => {
         console.log(e);
         toast.error("Unable to import XML...");
+        draftRestoreDoneRef.current = true;
+        setDraftStatus("error");
       });
   });
 
@@ -471,6 +875,8 @@ const ModelerState = ({
 
     onInitModeler(modeler);
   }, [modeler]);
+
+  const showSidePanel = sidePanelTab === "journal" || selectedElementId !== null;
 
   return (
     <>
@@ -486,8 +892,61 @@ const ModelerState = ({
         markerNotation={markerNotation}
         isSimulating={false}
         disableControls={false}
+        onSelect={updateSelection}
+        onImport={() => {
+          setSelectedElementId(null);
+          modeler?.setFocusFilter(null);
+          refreshInspector();
+          markDraftDirty();
+        }}
+        onElementChanged={() => {
+          refreshInspector();
+          markDraftDirty();
+        }}
+        onConnectionChanged={() => {
+          refreshInspector();
+          markDraftDirty();
+        }}
+      />
+      <ModelingSidePanel
+        activeTab={sidePanelTab}
+        details={
+          <SelectionInspector
+            modeler={modeler}
+            selectedElementId={selectedElementId}
+            relationVisibility={relationVisibility}
+            onToggleRelationType={toggleRelationType}
+            refreshKey={inspectorRefreshKey}
+            onRefresh={refreshInspector}
+          />
+        }
+        journal={
+          <SessionJournal
+            entries={journalEntries}
+            onAddNote={addFreeFormJournalNote}
+            onDeleteEntry={deleteJournalEntry}
+            onUpdateNote={updateJournalNote}
+          />
+        }
+        onTabChange={setSidePanelTab}
+        show={showSidePanel}
       />
       <TopRightIcons>
+        {isSupabaseConfigured && draftRestoreDoneRef.current && (
+          <DraftStatus title="Modeling draft autosave status">
+            {draftStatus === "saving"
+              ? "Saving draft..."
+              : draftStatus === "error"
+                ? "Draft save failed"
+                : "Draft saved"}
+          </DraftStatus>
+        )}
+        <JournalButton
+          $clicked={sidePanelTab === "journal"}
+          onClick={() => setSidePanelTab("journal")}
+          title="Open Session Journal"
+          data-testid="journal-icon"
+        />
         <HeatmapButton
           onClick={() => {
             if (!modeler) return;
@@ -545,8 +1004,8 @@ const ModelerState = ({
       {examplesOpen && (
         <Examples
           examplesData={examplesData}
-          openCustomXML={(xml) => open(xml, modeler?.importCustomXML)}
-          openDCRXML={(xml) => open(xml, modeler?.importDCRPortalXML)}
+          openCustomXML={(xml, name) => open(xml, modeler?.importCustomXML, name)}
+          openDCRXML={(xml, name) => open(xml, modeler?.importDCRPortalXML, name)}
           setExamplesOpen={setExamplesOpen}
           setLoading={setLoading}
         />

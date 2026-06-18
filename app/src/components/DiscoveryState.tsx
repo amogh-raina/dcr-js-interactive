@@ -116,8 +116,9 @@ const DiscoveryState = ({
   const [lastSavedXML, setLastSavedXML] = useState<string | null>(null);
 
   const saveLog = (eventLog: EventLog<RoleTrace>, name: string) => {
-    commitSaveLog(name, eventLog);
-    toast.success("Log saved!");
+    if (commitSaveLog(name, eventLog)) {
+      toast.success("Log saved!");
+    }
   };
 
   const algorithmForms: Record<
@@ -729,7 +730,7 @@ const DiscoveryState = ({
     try {
       setLoading(true);
       const data = await modeler.saveXML({ format: false });
-      if (commitSaveGraph(graphName, data.xml)) {
+      if (await commitSaveGraph(graphName, data.xml)) {
         toast.success("Graph saved!");
         setLastSavedXML(data.xml);
         saved = true;
@@ -798,7 +799,7 @@ const DiscoveryState = ({
       icon: <BiSave />,
       text: "Save Graph",
       onClick: () => {
-        saveGraph();
+        void saveGraph();
       },
     },
     {

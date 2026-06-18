@@ -45,7 +45,14 @@ PaletteProvider.prototype.getPaletteEntries = function (element) {
     globalConnect = this._globalConnect,
     translate = this._translate;
 
-  function createAction(type, group, className, title, options) {
+  function paletteEntryHtml(iconClass, label) {
+    return '<div class="entry dcr-palette-entry" draggable="true">' +
+      '<span class="dcr-palette-icon ' + iconClass + '"></span>' +
+      '<span class="dcr-palette-label">' + label + '</span>' +
+      '</div>';
+  }
+
+  function createAction(type, group, iconClass, title, label, options) {
     function createListener(event) {
       var shape = elementFactory.createShape(assign({ type: type }, options));
       create.start(event, shape);
@@ -55,7 +62,7 @@ PaletteProvider.prototype.getPaletteEntries = function (element) {
 
     return {
       group: group,
-      className: className,
+      html: paletteEntryHtml(iconClass, label),
       title: title || translate('Create {type}', { type: shortType }),
       action: {
         dragstart: createListener,
@@ -67,7 +74,7 @@ PaletteProvider.prototype.getPaletteEntries = function (element) {
   assign(actions, {
     'hand-tool': {
       group: 'tools',
-      className: 'bpmn-icon-hand-tool',
+      html: paletteEntryHtml('bpmn-icon-hand-tool', translate('Hand')),
       title: translate('Activate the hand tool'),
       action: {
         click: function (event) {
@@ -77,7 +84,7 @@ PaletteProvider.prototype.getPaletteEntries = function (element) {
     },
     'lasso-tool': {
       group: 'tools',
-      className: 'bpmn-icon-lasso-tool',
+      html: paletteEntryHtml('bpmn-icon-lasso-tool', translate('Select')),
       title: translate('Activate the lasso tool'),
       action: {
         click: function (event) {
@@ -87,7 +94,7 @@ PaletteProvider.prototype.getPaletteEntries = function (element) {
     },
     'space-tool': {
       group: 'tools',
-      className: 'bpmn-icon-space-tool',
+      html: paletteEntryHtml('bpmn-icon-space-tool', translate('Space')),
       title: translate('Activate the create/remove space tool'),
       action: {
         click: function (event) {
@@ -104,11 +111,12 @@ PaletteProvider.prototype.getPaletteEntries = function (element) {
       'dcr-elements',
       'od-icon-object',
       translate('Create a DCR Event'),
+      translate('Event'),
       { attrs: { included: true, pending: false, executed: false, enabled: false } }
     ),
     'object-linker': {
       group: 'dcr-elements',
-      className: 'bpmn-icon-connection',
+      html: paletteEntryHtml('bpmn-icon-connection', translate('Relation')),
       title: translate('Create a DCR Relation'),
       action: {
         click: function (event) {
@@ -122,6 +130,7 @@ PaletteProvider.prototype.getPaletteEntries = function (element) {
       'dcr-elements',
       'bpmn-icon-subprocess-expanded', 
       translate('Create a Single-Instance SubProcess'),
+      translate('Subprocess'),
       { attrs: { included: true, pending: false, executed: false, enabled: false } }
     ),
 
@@ -129,7 +138,8 @@ PaletteProvider.prototype.getPaletteEntries = function (element) {
       'dcr:Nesting',
       'dcr-elements',
       'od-text-box-nesting', 
-      translate('Create a Nesting')
+      translate('Create a Nesting'),
+      translate('Nesting')
     ),
   });
 

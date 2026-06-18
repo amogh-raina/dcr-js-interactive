@@ -667,6 +667,100 @@ BaseViewer.prototype.updateViolations = function (arg) {
   updateViolations(arg, modeling, this.get('elementRegistry'));
 }
 
+const focusMarkers = ['dcr-focus', 'dcr-context', 'dcr-dimmed', 'dcr-hidden'];
+
+function relationType(relation) {
+  return relation.businessObject.get('type');
+}
+
+function relationEndpoints(relation) {
+  return [relation.source, relation.target].filter(Boolean);
+}
+
+function addMarker(canvas, element, marker) {
+  canvas.addMarker(element, marker);
+  if (element.label) {
+    canvas.addMarker(element.label, marker);
+  }
+}
+
+function removeFocusMarkers(canvas, element) {
+  focusMarkers.forEach((marker) => {
+    canvas.removeMarker(element, marker);
+    if (element.label) {
+      canvas.removeMarker(element.label, marker);
+    }
+  });
+}
+
+function collectChildren(element, elements) {
+  if (!element.children) {
+    return;
+  }
+
+  element.children.forEach((child) => {
+    if (child.type !== 'label') {
+      elements.add(child);
+    }
+    collectChildren(child, elements);
+  });
+}
+
+BaseViewer.prototype.setFocusFilter = function (filter) {
+  const canvas = this.get('canvas');
+  const elementRegistry = this.get('elementRegistry');
+
+  elementRegistry.forEach((element) => removeFocusMarkers(canvas, element));
+
+  if (!filter || !filter.selectedId) {
+    return;
+  }
+
+  const selected = elementRegistry.get(filter.selectedId);
+  if (!selected) {
+    return;
+  }
+
+  const visibleRelationTypes = new Set(filter.visibleRelationTypes || []);
+  const focused = new Set([selected]);
+  const context = new Set();
+  const hidden = new Set();
+
+  if (selected.type === 'dcr:Relation') {
+    relationEndpoints(selected).forEach((element) => context.add(element));
+  } else {
+    collectChildren(selected, context);
+    [...(selected.incoming || []), ...(selected.outgoing || [])].forEach((relation) => {
+      if (visibleRelationTypes.has(relationType(relation))) {
+        focused.add(relation);
+        relationEndpoints(relation).forEach((element) => {
+          if (element !== selected) {
+            context.add(element);
+          }
+        });
+      } else {
+        hidden.add(relation);
+      }
+    });
+  }
+
+  elementRegistry.forEach((element) => {
+    if (element.type === 'label') {
+      return;
+    }
+
+    if (focused.has(element)) {
+      addMarker(canvas, element, 'dcr-focus');
+    } else if (hidden.has(element)) {
+      addMarker(canvas, element, 'dcr-hidden');
+    } else if (context.has(element)) {
+      addMarker(canvas, element, 'dcr-context');
+    } else {
+      addMarker(canvas, element, 'dcr-dimmed');
+    }
+  });
+}
+
 /**
  * Register an event listener
  *

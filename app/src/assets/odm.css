@@ -25,7 +25,90 @@
 
 /* OVERWRITING Diagram.js */
 .djs-palette {
-  box-shadow: 0 1px 1px 0 rgba(0, 0, 0, 0.2) !important;
+  top: 72px;
+  left: 18px;
+  width: 178px !important;
+  padding: 8px 0;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid #d6d6d6;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16) !important;
+  overflow: hidden;
+}
+
+.djs-palette:not(.open) {
+  width: 56px !important;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.djs-palette .group {
+  padding: 2px 8px;
+}
+
+.djs-palette .separator {
+  margin: 6px 8px;
+  padding-top: 6px;
+  border-bottom-color: #d8d8d8;
+}
+
+.djs-palette .dcr-palette-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  float: none;
+  width: 160px;
+  height: 46px;
+  margin: 2px 0;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  line-height: 1;
+  text-align: left;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    color 120ms ease;
+}
+
+.djs-palette .dcr-palette-icon {
+  flex: 0 0 32px;
+  color: #222;
+  font-size: 28px;
+  line-height: 1;
+  text-align: center;
+}
+
+.djs-palette .dcr-palette-label {
+  min-width: 0;
+  overflow: hidden;
+  color: #222;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.djs-palette .dcr-palette-entry:hover {
+  background: #f3f3f3;
+  border-color: #c8c8c8;
+  box-shadow: inset 3px 0 0 black;
+}
+
+.djs-palette .dcr-palette-entry.highlighted-entry {
+  background: black;
+  border-color: black;
+  color: white;
+}
+
+.djs-palette .dcr-palette-entry.highlighted-entry .dcr-palette-icon,
+.djs-palette .dcr-palette-entry:hover .dcr-palette-label,
+.djs-palette .dcr-palette-entry.highlighted-entry .dcr-palette-label {
+  color: inherit;
 }
 
 /* General */
