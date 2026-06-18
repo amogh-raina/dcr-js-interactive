@@ -25,7 +25,9 @@ import { loadRemoteGraphs, saveRemoteGraph } from "./supabase/graphs";
 import { persistenceErrorMessage } from "./supabase/errors";
 
 const MainLandmark = styled.main`
+  height: 100%;
   min-height: 100vh;
+  overflow: hidden;
   width: 100%;
 `;
 

@@ -23,6 +23,7 @@ class DCRModeler {
       visibleRelationTypes: string[];
     } | null
   ): void;
+  fitViewport(options?: { padding?: number; maxZoom?: number }): void;
 
   on(channel: string, callback: (event: any) => void);
   off(channel: string, callback: (event: any) => void);

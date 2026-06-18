@@ -16,6 +16,9 @@ import {
 } from 'tiny-svg';
 
 import Diagram from 'diagram-js';
+import {
+  getBBox
+} from 'diagram-js/lib/util/Elements';
 import Moddle from './moddle';
 
 import inherits from 'inherits-browser';
@@ -655,6 +658,50 @@ BaseViewer.prototype.getSelection = function () {
 
 BaseViewer.prototype.getElementRegistry = function () {
   return this.get('elementRegistry');
+}
+
+BaseViewer.prototype.fitViewport = function (options = {}) {
+  const canvas = this.get('canvas');
+  const elementRegistry = this.get('elementRegistry');
+  const rootElement = canvas.getRootElement();
+  const padding = Number.isFinite(options.padding) ? options.padding : 96;
+  const maxZoom = Number.isFinite(options.maxZoom) ? options.maxZoom : 1;
+
+  canvas.resized();
+
+  const elements = elementRegistry.filter((element) => {
+    return element !== rootElement && element.type !== 'label';
+  });
+
+  if (!elements.length) {
+    canvas.zoom('fit-viewport', true);
+    return;
+  }
+
+  const boundingBox = getBBox(elements);
+  const viewbox = canvas.viewbox();
+
+  if (!Number.isFinite(boundingBox.x) || !viewbox.outer.width || !viewbox.outer.height) {
+    canvas.zoom('fit-viewport', true);
+    return;
+  }
+
+  const paddedWidth = Math.max(boundingBox.width + padding * 2, 1);
+  const paddedHeight = Math.max(boundingBox.height + padding * 2, 1);
+  const scale = Math.min(
+    maxZoom,
+    viewbox.outer.width / paddedWidth,
+    viewbox.outer.height / paddedHeight
+  );
+  const fittedWidth = viewbox.outer.width / scale;
+  const fittedHeight = viewbox.outer.height / scale;
+
+  canvas.viewbox({
+    x: boundingBox.x + boundingBox.width / 2 - fittedWidth / 2,
+    y: boundingBox.y + boundingBox.height / 2 - fittedHeight / 2,
+    width: fittedWidth,
+    height: fittedHeight
+  });
 }
 
 BaseViewer.prototype.updateRendering = function (graph) {

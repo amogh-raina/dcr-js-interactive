@@ -303,6 +303,18 @@ const ModelerState = ({
     markDraftDirty();
   }, [markDraftDirty]);
 
+  const fitModelerViewport = useCallback(() => {
+    if (!modeler) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        modeler.fitViewport({ padding: 120, maxZoom: 1 });
+      });
+    });
+  }, [modeler]);
+
   const toggleRelationType = useCallback((relationType: RelationTypeFilter) => {
     setRelationVisibility((current) => ({
       ...current,
@@ -539,6 +551,7 @@ const ModelerState = ({
           setHasUnsavedGraphChanges(!savedGraphName);
           setSelectedElementId(null);
           modeler?.setFocusFilter(null);
+          fitModelerViewport();
           resetJournal(openedGraphName);
           markDraftDirty();
         })
@@ -890,6 +903,7 @@ const ModelerState = ({
         }
         draftRestoreDoneRef.current = true;
         setDraftStatus(isSupabaseConfigured ? "saved" : "idle");
+        fitModelerViewport();
         markDraftDirty();
       })
       .catch((e: Error) => {
@@ -957,6 +971,7 @@ const ModelerState = ({
         onImport={() => {
           setSelectedElementId(null);
           modeler?.setFocusFilter(null);
+          fitModelerViewport();
           refreshInspector();
           markGraphDirty();
         }}
