@@ -104,6 +104,7 @@ function handleRoles(object, element) {
 }
 
 function handleDimensions(object, element) {
+  if (!element.di || !element.di.bounds) return;
   if (!object.custom) object.custom = {};
   assign(object.custom, {
     visualization: {
@@ -201,9 +202,9 @@ function addLink(dcr, parent, element, object) {
       targetId: element.targetRef.id,
     },
     custom: {
-      waypoints: {
-        waypoint: element.di.waypoint.map(point => ({ $: { x: point.x, y: point.y } }))
-      },
+      ...(element.di && element.di.waypoint
+        ? { waypoints: { waypoint: element.di.waypoint.map(point => ({ $: { x: point.x, y: point.y } })) } }
+        : {}),
       id: {
         $: {
           id: element.id,

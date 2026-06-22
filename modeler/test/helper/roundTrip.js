@@ -1,27 +1,31 @@
 import { parseStringPromise } from 'xml2js';
-import Modeler from '/lib/Modeler';
+import DCRPortalConverter from '/lib/DCRPortalConverter';
+import DCRModdle from '/lib/moddle';
+import asXML from '/lib/DCRXML';
 
-export function createModeler() {
-  const container = document.createElement('div');
-  return new Modeler({ container, keyboard: { bindTo: document } });
+// Headless: happy-dom lacks SVG, so we never instantiate a Modeler/canvas.
+// Round-trip = DCR Solutions XML -> intermediate dcr: XML -> moddle tree -> DCR Solutions XML.
+export function createModeler() { return { defs: null }; }
+
+export async function importDcrSolutions(holder, dcrSolutionsXml) {
+  const dcrXml = await DCRPortalConverter(dcrSolutionsXml);
+  const moddle = DCRModdle();
+  const { rootElement } = await moddle.fromXML(dcrXml, 'dcr:Definitions');
+  holder.defs = rootElement;
+  return rootElement;
 }
 
-export async function importDcrSolutions(modeler, xml) {
-  try {
-    return await modeler.importDCRPortalXML(xml);
-  } catch (err) {
-    // happy-dom does not implement SVGTransformList.consolidate; the canvas
-    // render fails but _definitions are still populated so export still works.
-    if (err && err.message && err.message.includes('transformList.consolidate')) {
-      return { warnings: err.warnings || [] };
-    }
-    throw err;
-  }
-}
-
-export async function exportDcrSolutions(modeler) {
-  const { xml } = await modeler.saveDCRXML();
+export async function exportDcrSolutions(holder) {
+  const { xml } = await asXML({}, holder.defs);
   return xml;
+}
+
+export async function internalRoundTrip(holder) {
+  const moddle = DCRModdle();
+  const { xml } = await moddle.toXML(holder.defs);
+  const { rootElement } = await moddle.fromXML(xml, 'dcr:Definitions');
+  holder.defs = rootElement;
+  return rootElement;
 }
 
 export async function parseDcr(xml) {
@@ -47,6 +51,7 @@ export function collectRelations(parsed) {
     const rows = cons[section];
     if (!Array.isArray(rows)) continue;
     for (const row of rows) {
+      if (!row || typeof row !== 'object') continue;
       for (const relKey of Object.keys(row)) {
         for (const rel of (row[relKey] || [])) {
           if (rel && rel.$) out.push({ section, ...rel.$ });
