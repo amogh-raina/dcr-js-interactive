@@ -16,6 +16,7 @@
 - The three real graphs are the fixtures and the acceptance corpus: `Corona - ChatBot SOP`, `SU (Handicap)`, `DMN chatbot - english`.
 - Tests live under `modeler/test/spec/**` and run via `yarn workspace modeler test`.
 - Follow existing converter style (xml2js object building; `parentMap`; `dcr:`-prefixed keys). Do not restructure the editor core.
+- **Tests run HEADLESS via moddle, never via a live `Modeler`/canvas.** happy-dom lacks `SVGTransformList.consolidate`, so diagram-js rendering throws on import (existing modeler tests even assert import errors). The round-trip is exercised as: `DCRPortalConverter(xml)` → `DCRModdle().fromXML(dcrXml,'dcr:Definitions')` → `asXML({}, definitions)`. Consequently **export (`DCRXML.js`) must not depend on render-time `.di`** — guard `element.di` in `handleDimensions` and `addLink` (layout/visualization is Bucket-2 metadata, restored via carry in Tasks 9–10).
 
 ---
 
@@ -33,45 +34,57 @@
 
 ---
 
-### Task 1: Test harness — fixtures, round-trip driver, semantic diff
+### Task 1: Headless round-trip harness + `.di` guards
 
 **Files:**
-- Create: `modeler/test/fixtures/dcrsolutions/corona.xml`, `su.xml`, `dmn.xml` (paste the three provided graphs verbatim)
+- Already on disk (do NOT recreate): `modeler/test/fixtures/dcrsolutions/corona.xml`, `su.xml`, `dmn.xml`
 - Create: `modeler/test/helper/roundTrip.js`
 - Create: `modeler/test/spec/dcr-fidelity.spec.js`
+- Modify: `modeler/lib/DCRXML.js` (guard render-time `.di` in `handleDimensions` and `addLink`)
 - Test: `modeler/test/spec/dcr-fidelity.spec.js`
 
 **Interfaces:**
-- Produces:
-  - `importDcrSolutions(modeler, xml): Promise<void>` — imports DCR Solutions XML via `modeler.importDCRPortalXML`.
-  - `exportDcrSolutions(modeler): Promise<string>` — returns DCR Solutions XML via `modeler.saveDCRXML()`.
-  - `parseDcr(xml): object` — xml2js parse to a plain object (async-free wrapper using `parseStringPromise`).
-  - `collectEventIds(parsedDcr): string[]` — recursively all `event/@id` (incl. nested).
-  - `collectRelations(parsedDcr): Array<{section,sourceId,targetId,...attrs}>` — all constraint rows across every `<constraints>` child section.
+- Produces (headless — NO live `Modeler`):
+  - `createModeler(): { defs: null }` — a plain holder object (kept for call-site symmetry across later tasks; not a real Modeler).
+  - `importDcrSolutions(holder, dcrSolutionsXml): Promise<definitions>` — `DCRPortalConverter(xml)` → `DCRModdle().fromXML(dcrXml,'dcr:Definitions')`; stores and returns the moddle `definitions` tree on `holder.defs`.
+  - `exportDcrSolutions(holder): Promise<string>` — `asXML({}, holder.defs)` → DCR Solutions XML string.
+  - `internalRoundTrip(holder): Promise<definitions>` — internal `dcr:` serialization round-trip via `moddle.toXML`→`moddle.fromXML` (the Supabase persistence path), headless.
+  - `parseDcr(xml): Promise<object>` — `parseStringPromise`.
+  - `collectEventIds(parsedDcr): string[]` — recursively all `event/@id`.
+  - `collectRelations(parsedDcr): Array<{section,...attrs}>` — all constraint rows across every `<constraints>` child section.
 
-- [ ] **Step 1: Add the three fixtures**
-
-Copy the three provided XML documents verbatim into `modeler/test/fixtures/dcrsolutions/corona.xml`, `su.xml`, `dmn.xml`.
-
-- [ ] **Step 2: Write the round-trip helper**
+- [ ] **Step 1: Write the headless helper**
 
 ```js
 // modeler/test/helper/roundTrip.js
 import { parseStringPromise } from 'xml2js';
-import Modeler from '/lib/Modeler';
+import DCRPortalConverter from '/lib/DCRPortalConverter';
+import DCRModdle from '/lib/moddle';
+import asXML from '/lib/DCRXML';
 
-export function createModeler() {
-  const container = document.createElement('div');
-  return new Modeler({ container, keyboard: { bindTo: document } });
+// Headless: happy-dom lacks SVG, so we never instantiate a Modeler/canvas.
+// Round-trip = DCR Solutions XML -> intermediate dcr: XML -> moddle tree -> DCR Solutions XML.
+export function createModeler() { return { defs: null }; }
+
+export async function importDcrSolutions(holder, dcrSolutionsXml) {
+  const dcrXml = await DCRPortalConverter(dcrSolutionsXml);
+  const moddle = DCRModdle();
+  const { rootElement } = await moddle.fromXML(dcrXml, 'dcr:Definitions');
+  holder.defs = rootElement;
+  return rootElement;
 }
 
-export async function importDcrSolutions(modeler, xml) {
-  return modeler.importDCRPortalXML(xml);
-}
-
-export async function exportDcrSolutions(modeler) {
-  const { xml } = await modeler.saveDCRXML();
+export async function exportDcrSolutions(holder) {
+  const { xml } = await asXML({}, holder.defs);
   return xml;
+}
+
+export async function internalRoundTrip(holder) {
+  const moddle = DCRModdle();
+  const { xml } = await moddle.toXML(holder.defs);
+  const { rootElement } = await moddle.fromXML(xml, 'dcr:Definitions');
+  holder.defs = rootElement;
+  return rootElement;
 }
 
 export async function parseDcr(xml) {
@@ -97,6 +110,7 @@ export function collectRelations(parsed) {
     const rows = cons[section];
     if (!Array.isArray(rows)) continue;
     for (const row of rows) {
+      if (!row || typeof row !== 'object') continue;
       for (const relKey of Object.keys(row)) {
         for (const rel of (row[relKey] || [])) {
           if (rel && rel.$) out.push({ section, ...rel.$ });
@@ -108,7 +122,7 @@ export function collectRelations(parsed) {
 }
 ```
 
-- [ ] **Step 3: Write the baseline round-trip test (documents current structural pass + current data loss)**
+- [ ] **Step 2: Write the failing baseline test**
 
 ```js
 // modeler/test/spec/dcr-fidelity.spec.js
@@ -117,31 +131,57 @@ import coronaXML from '../fixtures/dcrsolutions/corona.xml?raw';
 import suXML from '../fixtures/dcrsolutions/su.xml?raw';
 import dmnXML from '../fixtures/dcrsolutions/dmn.xml?raw';
 import {
-  createModeler, importDcrSolutions, exportDcrSolutions, parseDcr, collectEventIds,
+  createModeler, importDcrSolutions, exportDcrSolutions, parseDcr, collectEventIds, collectRelations,
 } from '../helper/roundTrip';
 
 describe('DCR Solutions round-trip', () => {
-  it('preserves all event ids (structure) for corona', async () => {
-    const modeler = createModeler();
-    await importDcrSolutions(modeler, coronaXML);
-    const out = await exportDcrSolutions(modeler);
-    const before = collectEventIds(await parseDcr(coronaXML));
-    const after = collectEventIds(await parseDcr(out));
-    expect(after).toEqual(before);
+  it('completes a headless round-trip and keeps event ids (dmn)', async () => {
+    const m = createModeler();
+    await importDcrSolutions(m, dmnXML);
+    const out = await exportDcrSolutions(m);
+    expect(out).toContain('<dcrgraph');
+    for (const id of ['Age', 'Country', 'DMN', 'A4']) {
+      expect(out).toContain(`id="${id}"`);
+    }
   });
 });
 ```
 
-- [ ] **Step 4: Run the test**
+- [ ] **Step 3: Run to verify it fails**
 
 Run: `yarn workspace modeler test -- dcr-fidelity --run`
-Expected: the structure test PASSES (event ids round-trip); if it fails, fix `collectEventIds` traversal before proceeding. This task only establishes the harness.
+Expected: FAIL — `asXML` throws `Cannot read properties of undefined (reading 'bounds')` (and then `'waypoint'`) because the headless moddle tree has no render-time `.di`.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Guard `.di` in `DCRXML.js`**
+
+In `handleDimensions`, make the first line:
+```js
+function handleDimensions(object, element) {
+  if (!element.di || !element.di.bounds) return;
+  if (!object.custom) object.custom = {};
+  // ...unchanged...
+}
+```
+In `addLink`, emit `waypoints` only when present:
+```js
+custom: {
+  ...(element.di && element.di.waypoint
+    ? { waypoints: { waypoint: element.di.waypoint.map(point => ({ $: { x: point.x, y: point.y } })) } }
+    : {}),
+  id: { $: { id: element.id } },
+},
+```
+
+- [ ] **Step 5: Run to verify it passes**
+
+Run: `yarn workspace modeler test -- dcr-fidelity --run`
+Expected: PASS — round-trip completes; `Age`/`Country`/`DMN`/`A4` ids present in output.
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add modeler/test/fixtures/dcrsolutions modeler/test/helper/roundTrip.js modeler/test/spec/dcr-fidelity.spec.js
-git commit -m "test: add DCR Solutions round-trip harness and fixtures"
+git add modeler/test/fixtures/dcrsolutions modeler/test/helper/roundTrip.js modeler/test/spec/dcr-fidelity.spec.js modeler/lib/DCRXML.js
+git commit -m "test+fix(modeler): headless DCR Solutions round-trip harness; guard render-time di in export"
 ```
 
 ---
@@ -162,10 +202,10 @@ git commit -m "test: add DCR Solutions round-trip harness and fixtures"
 - [ ] **Step 1: Write the failing schema round-trip test**
 
 ```js
-// append to dcr-fidelity.spec.js
-import Modeler from '/lib/Modeler';
+// append to dcr-fidelity.spec.js — headless moddle parse/serialize (no Modeler render)
+import DCRModdle from '/lib/moddle';
 
-it('moddle preserves new typed attrs through importXML→saveXML', async () => {
+it('moddle preserves new typed attrs through fromXML→toXML', async () => {
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <dcr:definitions xmlns:dcr="http://tk/schema/dcr" xmlns:dcrDi="http://tk/schema/dcrDi" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC">
   <dcr:dcrGraph id="Graph">
@@ -178,9 +218,9 @@ it('moddle preserves new typed attrs through importXML→saveXML', async () => {
     <dcrDi:dcrShape id="E1_di" boardElement="E1"><dc:Bounds x="0" y="0" width="130" height="150" /></dcrDi:dcrShape>
   </dcrDi:dcrPlane></dcrDi:dcrRootBoard>
 </dcr:definitions>`;
-  const modeler = new Modeler({ container: document.createElement('div') });
-  await modeler.importXML(xml);
-  const out = (await modeler.saveXML({ format: false })).xml;
+  const moddle = DCRModdle();
+  const { rootElement } = await moddle.fromXML(xml, 'dcr:Definitions');
+  const out = (await moddle.toXML(rootElement)).xml;
   expect(out).toContain('dataType="choice"');
   expect(out).toContain('label="Yes"');
 });
@@ -857,9 +897,23 @@ In `asXML`, parse `definitions.rootElements[0].graphExtensions.content`, restore
 Run: `yarn workspace modeler test -- dcr-fidelity --run`
 Expected: PASS — all three graphs lossless; DMN definitions present.
 
-- [ ] **Step 6: Secondary round-trip — internal saveXML preserves carry**
+- [ ] **Step 6: Secondary round-trip — internal `dcr:` serialization preserves carry (headless)**
 
-Add a test: import DCR Solutions → `saveXML` → `importXML` → `saveDCRXML`, then assert `collectEventIds` and `graphDetails` still match. Run and confirm PASS.
+Add a test using the headless helpers: import DCR Solutions, then `internalRoundTrip(holder)` (which does `moddle.toXML`→`moddle.fromXML`, the Supabase persistence path), then `exportDcrSolutions(holder)`; assert `collectEventIds` and the presence of `graphDetails` still match the original. Example:
+
+```js
+it('internal dcr: round-trip preserves typed data + carry (su)', async () => {
+  const m = createModeler();
+  await importDcrSolutions(m, suXML);
+  await internalRoundTrip(m);
+  const after = await parseDcr(await exportDcrSolutions(m));
+  const before = await parseDcr(suXML);
+  expect(collectEventIds(after)).toEqual(collectEventIds(before));
+  expect(!!after.dcrgraph.specification[0].resources[0].custom[0].graphDetails)
+    .toBe(!!before.dcrgraph.specification[0].resources[0].custom[0].graphDetails);
+});
+```
+Run `yarn workspace modeler test -- dcr-fidelity --run` and confirm PASS.
 
 - [ ] **Step 7: Commit**
 
