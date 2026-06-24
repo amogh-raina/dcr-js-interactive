@@ -10,7 +10,6 @@ import type { EventLog, RoleTrace } from "dcr-engine";
 import DiscoveryState from "./components/DiscoveryState";
 import EventLogGenerationState from "./components/EventLogGenerationState";
 import AuthGate from "./components/AuthGate";
-import AuthStatus from "./components/AuthStatus";
 import {
   isColoredRelations,
   isMarkerNotation,
@@ -76,6 +75,8 @@ export interface StateProps {
   coloredRelations: ColoredRelations;
   changeColoredRelations: (value: unknown) => void;
   setModelingPersistenceWarning?: (warning: string | null) => void;
+  authEmail?: string;
+  onSignOut?: () => void;
 }
 
 const App = () => {
@@ -334,6 +335,8 @@ const App = () => {
           coloredRelations={coloredRelations}
           changeColoredRelations={changeColoredRelations}
           setModelingPersistenceWarning={setModelingPersistenceWarning}
+          authEmail={authSession?.user.email ?? undefined}
+          onSignOut={isSupabaseConfigured ? signOut : undefined}
         />
       );
     case StateEnum.Home:
@@ -450,15 +453,7 @@ const App = () => {
   })();
 
   return (
-    <>
-      {isSupabaseConfigured && authSession && (
-        <AuthStatus
-          email={authSession.user.email ?? "Signed in"}
-          onSignOut={signOut}
-        />
-      )}
-      <MainLandmark>{stateContent}</MainLandmark>
-    </>
+    <MainLandmark>{stateContent}</MainLandmark>
   );
 };
 

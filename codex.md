@@ -181,6 +181,20 @@ Journal sync duplicate-id fix:
 - `app/src/supabase/journal.ts` now deduplicates journal entries before calling Supabase `.upsert(...)`, preventing Postgres `ON CONFLICT DO UPDATE command cannot affect row a second time` errors when duplicate client ids are present.
 - The fix is client-side only and does not change the Supabase schema.
 
+Modeling details label/description update:
+
+- `modeler/lib/moddle/resources/dcr.json` now supports a separate `eventDescription` attribute on events, subprocesses, and nestings.
+- `modeler/lib/DCRPortalConverter` now imports DCR Solutions `<eventDescription>` text into `eventDescription` while keeping `description` as the rendered canvas label.
+- `app/src/components/SelectionInspector.tsx` now labels the rendered `description` field as `Label` and shows a separate multiline `Description` field backed by `eventDescription`.
+- `app/src/components/sessionJournalMapper.ts` now tracks `eventDescription` edits and reports `description` edits as label edits in journal summaries.
+- `modeler/lib/DCRXML.js` now emits `eventDescription` into DCR Solutions-style custom metadata when exporting.
+
+Modeling sign-out menu update:
+
+- `app/src/App.tsx` no longer renders the fixed bottom-right `AuthStatus` sign-out widget while authenticated.
+- `app/src/App.tsx` passes the signed-in email and sign-out handler into the Modeling state.
+- `app/src/components/ModelerState.tsx` now adds `Sign out` to the Modeling hamburger menu, using the existing sign-out confirmation flow.
+
 Git hygiene update:
 
 - `app/src/supabase/` was reviewed and is safe to keep in Git because it contains source modules only. It reads `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from the environment and does not contain project credentials.

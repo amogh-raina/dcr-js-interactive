@@ -103,6 +103,14 @@ function handleRoles(object, element) {
   }
 }
 
+function handleEventDescription(object, element) {
+  if (!element.eventDescription) return;
+  if (!object.custom) object.custom = {};
+  assign(object.custom, {
+    eventDescription: element.eventDescription
+  });
+}
+
 function handleDimensions(object, element) {
   if (!object.custom) object.custom = {};
   assign(object.custom, {
@@ -138,6 +146,7 @@ function handleStates(dcr, element) {
 function addEvent(dcr, parent, element, object) {
   handleLabels(dcr, element);
   handleRoles(object, element);
+  handleEventDescription(object, element);
   handleStates(dcr, element);
   handleDimensions(object, element);
   parent.push(object);
@@ -150,6 +159,7 @@ function addNesting(dcr, parent, element, object) {
 
   handleLabels(dcr, element);
   handleRoles(object, element);
+  handleEventDescription(object, element);
 
   handleDimensions(object, element);
 
@@ -182,6 +192,7 @@ function addSubProcess(dcr, parent, element, object) {
     });
 
     handleLabels(dcr, element);
+    handleEventDescription(object, element);
     handleStates(dcr, element);
     handleDimensions(object, element);
 

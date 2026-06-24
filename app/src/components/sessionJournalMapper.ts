@@ -29,6 +29,7 @@ type JournalDraft = Omit<JournalEntry, "id" | "timestamp" | "note">;
 
 const trackedProperties = [
   "description",
+  "eventDescription",
   "role",
   "included",
   "executed",
@@ -221,6 +222,14 @@ function property(element: DiagramElement, key: string) {
 function propertyLabel(propertyName: string) {
   if (propertyName === "type") {
     return "relation type";
+  }
+
+  if (propertyName === "description") {
+    return "label";
+  }
+
+  if (propertyName === "eventDescription") {
+    return "description";
   }
 
   return propertyName;

@@ -12,6 +12,7 @@ import {
   BiAnalyse,
   BiHome,
   BiLeftArrowCircle,
+  BiLogOut,
   BiNotepad,
   BiPlus,
   BiSave,
@@ -153,6 +154,8 @@ const ModelerState = ({
   changeColoredRelations,
   markerNotation,
   changeMarkerNotation,
+  authEmail,
+  onSignOut,
 }: StateProps) => {
   const [examplesOpen, setExamplesOpen] = useState(false);
   const [examplesData, setExamplesData] = useState<Array<string>>([]);
@@ -744,6 +747,18 @@ const ModelerState = ({
   ];
 
   const bottomElements: Array<ModalMenuElement> = [
+    ...(onSignOut
+      ? [
+          {
+            icon: <BiLogOut />,
+            text: authEmail ? `Sign out (${authEmail})` : "Sign out",
+            onClick: () => {
+              setMenuOpen(false);
+              onSignOut();
+            },
+          },
+        ]
+      : []),
     {
       customElement: (
         <ColoredRelationsSetting
