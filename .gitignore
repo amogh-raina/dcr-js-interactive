@@ -20,6 +20,7 @@ node_modules
 .env.production.local
 /tmp/
 /.playwright-mcp
+/docs/superpowers
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
