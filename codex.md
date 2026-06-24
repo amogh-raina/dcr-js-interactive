@@ -195,6 +195,11 @@ Modeling sign-out menu update:
 - `app/src/App.tsx` passes the signed-in email and sign-out handler into the Modeling state.
 - `app/src/components/ModelerState.tsx` now adds `Sign out` to the Modeling hamburger menu, using the existing sign-out confirmation flow.
 
+Repository cleanup update:
+
+- `docs/superpowers/` was removed from the tracked repository contents because it contained local planning/specification notes that are not part of the application.
+- The cleanup is repository-only and does not affect app runtime code, Supabase migrations, or deployment configuration.
+
 Git hygiene update:
 
 - `app/src/supabase/` was reviewed and is safe to keep in Git because it contains source modules only. It reads `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` from the environment and does not contain project credentials.
