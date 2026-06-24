@@ -69,6 +69,17 @@ const TextInput = styled.input`
   font: inherit;
 `;
 
+const TextArea = styled.textarea`
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 7rem;
+  padding: 0.5rem;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  resize: vertical;
+  font: inherit;
+`;
+
 const ApplyButton = styled(Button)`
   width: fit-content;
   font-size: 0.95rem;
@@ -172,6 +183,10 @@ function supportsDescription(element: DiagramElement | null) {
   );
 }
 
+function supportsEventDescription(element: DiagramElement | null) {
+  return supportsDescription(element);
+}
+
 function supportsRole(element: DiagramElement | null) {
   return element?.type === "dcr:Event" || element?.type === "dcr:Nesting";
 }
@@ -248,11 +263,13 @@ function SelectionInspector({
     [modeler, selectedElementId, refreshKey],
   );
 
-  const [description, setDescription] = useState("");
+  const [label, setLabel] = useState("");
+  const [eventDescription, setEventDescription] = useState("");
   const [role, setRole] = useState("");
 
   useEffect(() => {
-    setDescription(getProperty(selectedElement, "description"));
+    setLabel(getProperty(selectedElement, "description"));
+    setEventDescription(getProperty(selectedElement, "eventDescription"));
     setRole(getProperty(selectedElement, "role"));
   }, [selectedElement, refreshKey]);
 
@@ -269,7 +286,10 @@ function SelectionInspector({
 
     const properties: Record<string, string> = {};
     if (supportsDescription(selectedElement)) {
-      properties.description = description;
+      properties.description = label;
+    }
+    if (supportsEventDescription(selectedElement)) {
+      properties.eventDescription = eventDescription;
     }
     if (supportsRole(selectedElement)) {
       properties.role = role;
@@ -303,10 +323,20 @@ function SelectionInspector({
 
       {supportsDescription(selectedElement) && (
         <Field>
-          Description
+          Label
           <TextInput
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
+            value={label}
+            onChange={(event) => setLabel(event.target.value)}
+          />
+        </Field>
+      )}
+
+      {supportsEventDescription(selectedElement) && (
+        <Field>
+          Description
+          <TextArea
+            value={eventDescription}
+            onChange={(event) => setEventDescription(event.target.value)}
           />
         </Field>
       )}
@@ -318,7 +348,9 @@ function SelectionInspector({
         </Field>
       )}
 
-      {(supportsDescription(selectedElement) || supportsRole(selectedElement)) && (
+      {(supportsDescription(selectedElement) ||
+        supportsEventDescription(selectedElement) ||
+        supportsRole(selectedElement)) && (
         <ApplyButton onClick={applyChanges}>Apply</ApplyButton>
       )}
 

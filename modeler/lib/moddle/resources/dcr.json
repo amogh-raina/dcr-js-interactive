@@ -35,6 +35,11 @@
           "type": "String"
         },
         {
+          "name": "eventDescription",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
           "name": "included",
           "isAttr": true,
           "type": "Boolean"
@@ -73,6 +78,11 @@
           "type": "String"
         },
         {
+          "name": "eventDescription",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
           "name": "boardElements",
           "type": "BoardElement",
           "isMany": true
@@ -87,6 +97,11 @@
       "properties": [
         {
           "name": "description",
+          "isAttr": true,
+          "type": "String"
+        },
+        {
+          "name": "eventDescription",
           "isAttr": true,
           "type": "String"
         },

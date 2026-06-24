@@ -49,6 +49,21 @@ function getDescription(id, xml) {
   } 
 }
 
+function getEventDescription(event) {
+  const value = event.custom?.[0]?.eventDescription?.[0];
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>\s*<p>/gi, '\n')
+    .replace(/<\/?p>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function getIncluded(id, xml) {
   if (xml){
     const events = xml?.specification?.[0]?.resources?.[0]?.events?.[0]?.event;
@@ -120,6 +135,7 @@ function handleEvent(event, xml, bpmn, parent, parentMap) {
         role: event.custom[0]?.roles?.[0]?.role?.map(r => typeof r === 'object' ? r._
         : r).filter(Boolean).join(", "),
         description: getDescription(event.$.id, xml),
+        eventDescription: getEventDescription(event),
         included: getIncluded(event.$.id, xml),
         executed: getExecuted(event.$.id, xml),
         pending: getPending(event.$.id, xml),
@@ -147,6 +163,7 @@ function handleEvent(event, xml, bpmn, parent, parentMap) {
         role: (() => { const r = event.custom[0]?.roles?.[0]?.role?.[0]; return typeof
         r === 'object' ? r._ : r; })(),
         description: getDescription(event.$.id, xml),
+        eventDescription: getEventDescription(event),
       },
       "dcr:event": [],
       "dcr:nesting": [],
@@ -179,6 +196,7 @@ function handleEvent(event, xml, bpmn, parent, parentMap) {
       $: {
         id: event.$.id,
         description: getDescription(event.$.id, xml),
+        eventDescription: getEventDescription(event),
         included: getIncluded(event.$.id, xml),
         executed: getExecuted(event.$.id, xml),
         pending: getPending(event.$.id, xml),
@@ -214,6 +232,7 @@ function handleEvent(event, xml, bpmn, parent, parentMap) {
       $: {
         id: event.$.id,
         description: getDescription(event.$.id, xml),
+        eventDescription: getEventDescription(event),
         included: getIncluded(event.$.id, xml),
         executed: getExecuted(event.$.id, xml), //Include subEvents
         pending: getPending(event.$.id, xml),
